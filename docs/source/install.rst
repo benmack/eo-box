@@ -2,8 +2,13 @@
 Installation
 ************
 
-So far it is required to intall the package from the github repository::
+The package requires Python 3. It can be installed with the following command::
 
-$ pip install git+https://github.com/benmack/eo-box.git
+    pip install eo-box
 
-It is planned to distribute the package on `Python Package Index (PyPI) <https://pypi.org/>`_. 
+
+It is also possible to install the subpackage separately::
+
+    pip install eo-box-sampledata
+    pip install eo-box-raster
+
