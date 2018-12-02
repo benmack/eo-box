@@ -14,5 +14,25 @@ So far, the following subpackages are available:
 
 - **`eo-box-sampledata`** contains small sample data that can be used for playing around and testing.
 - **`eo-learn-raster`** contains raster processing tools for  
-    * extraction, of raster values at given (by vector data) locations,
+    * extracting raster values at given (by vector data) locations,
     * window- / chunk-wise processing of multiple single layer raster files as a stack.
+
+
+## Installation
+
+The package requires Python 3. It can be installed with the following command:
+
+```bash
+pip install eo-learn
+```
+
+It is also possible to install the subpackage separately:
+
+```bash
+pip install eo-box-sampledata
+pip install eo-box-raster
+```
+
+## Documentation
+
+The package documentation can be found at [readthedocs](https://eo-box.readthedocs.io/).
