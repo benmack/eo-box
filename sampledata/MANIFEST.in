@@ -1,0 +1,3 @@
+include requirements.txt
+recursive-include eobox/sampledata *.jp2
+recursive-include eobox/sampledata *.gpkg

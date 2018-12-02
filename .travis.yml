@@ -1,0 +1,38 @@
+language: python
+python:
+  # We don't actually use the Travis Python, but this keeps it organized.
+  - "3.6"
+install:
+  - sudo apt-get update
+  # We do this conditionally because it saves us some downloading if the
+  # version is the same.
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  # Add channels
+  - conda config --add channels conda-forge
+
+  # Add dependencies
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION rasterio gdal
+  - source activate test-environment
+  
+  - pip install -r requirements-dev.txt
+  - python install_all.py
+
+script:
+  - pylint sampledata/eobox/sampledata/*.py
+  - pylint raster/eobox/raster/*.py
+  - radon cc sampledata/eobox/sampledata/*.py -a -nb
+  - radon cc raster/eobox/raster/*.py -a -nb
+  - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then pytest --ignore raster/eobox/tests; fi'
+  - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then pytest ; fi'

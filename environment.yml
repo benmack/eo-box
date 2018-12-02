@@ -1,0 +1,18 @@
+name: _eotools
+channels:
+- conda-forge
+- defaults
+dependencies:
+- python>=3.5
+- cython
+- libgdal
+- gdal
+- pandas
+- numpy
+- rasterio
+- pip:
+  - Sphinx==1.7.5
+  - sphinx-rtd-theme==0.4.0
+  - nbsphinx==0.3.3
+  - ipython==6.4.0
+  - m2r==0.1.15
