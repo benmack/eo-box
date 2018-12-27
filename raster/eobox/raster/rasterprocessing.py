@@ -4,7 +4,6 @@ import rasterio
 from rasterio.warp import reproject
 from rasterio.enums import Resampling
 from rasterio import transform
-from rasterio import windows
 
 class MultiRasterIO():
     def __init__(self, layer_files: list,
@@ -72,10 +71,10 @@ class MultiRasterIO():
         self._windows_res = res
         a_file_index_given_res = self._res_indices[res][0]
         with rasterio.open(self._layer_files[a_file_index_given_res]) as src:
-            windows = tuple(src.block_windows())
-        self.windows = np.array([win[1] for win in windows])
-        self.windows_row = np.array([win[0][0] for win in windows])
-        self.windows_col = np.array([win[0][1] for win in windows])
+            wins_of_first_dst_res_layer = tuple(src.block_windows())
+        self.windows = np.array([win[1] for win in wins_of_first_dst_res_layer])
+        self.windows_row = np.array([win[0][0] for win in wins_of_first_dst_res_layer])
+        self.windows_col = np.array([win[0][1] for win in wins_of_first_dst_res_layer])
 
     def windows_from_blocksize(self, blocksize_xy=512):
         """Create rasterio.windows.Window instances with given size which fully cover the raster.
@@ -91,15 +90,15 @@ class MultiRasterIO():
         meta = self._get_template_for_given_resolution(self.dst_res, "meta")
         width = meta["width"]
         height = meta["height"]
-        windows = windows_from_blocksize(blocksize_xy, width, height)
+        blocksize_wins = windows_from_blocksize(blocksize_xy, width, height)
 
-        self.windows = np.array([win[1] for win in windows])
-        self.windows_row = np.array([win[0][0] for win in windows])
-        self.windows_col = np.array([win[0][1] for win in windows])
+        self.windows = np.array([win[1] for win in blocksize_wins])
+        self.windows_row = np.array([win[0][0] for win in blocksize_wins])
+        self.windows_col = np.array([win[0][1] for win in blocksize_wins])
         return self
 
     def _get_template_for_given_resolution(self, res, return_):
-        """According to the specified resolution ('res') return template layer 'path', 'meta' or 'windows'."""
+        """Given specified resolution ('res') return template layer 'path', 'meta' or 'windows'."""
         path = self._layer_files[self._res_indices[res][0]]
         if return_ == "path":
             return_value = path
@@ -260,12 +259,16 @@ class MultiRasterIO():
         """Get the window index given a coordinate (raster CRS)."""
         a_transform = self._get_template_for_given_resolution(res=self.dst_res, return_="meta")["transform"]
         row, col = transform.rowcol(a_transform, xy[0], xy[1])
-        
+        ij_containing_xy = None
         for ji, win in enumerate(self.windows):
             (row_start, row_end), (col_start, col_end) = rasterio.windows.toranges(win)
             # print(row, col, row_start, row_end, col_start, col_end)
             if ((col >= col_start) & (col < col_end)) & ((row >= row_start) & (row < row_end)):
-                return ji
+                ij_containing_xy = ji
+                break
+        if ij_containing_xy is None:
+            raise ValueError("The given 'xy' value is not contained in any window.")
+        return ij_containing_xy
 
 def window_from_window(window_src, transform_src, transform_dst):
     # extend that transform can be a filename, rasterio dataset, meta (dict), or Affine
@@ -281,18 +284,18 @@ def window_from_window(window_src, transform_src, transform_dst):
 
 def windows_from_blocksize(blocksize_xy, width, height):
     """Create rasterio.windows.Window instances with given size which fully cover a raster.
-    
+
     Arguments:
         blocksize_xy {int or list of two int} -- [description]
         width {int} -- With of the raster for which to create the windows.
         height {int} -- Heigth of the raster for which to create the windows.
-    
+
     Returns:
-        list -- List of windows according to the following format 
+        list -- List of windows according to the following format
             ``[[<row-index>, <column index>], rasterio.windows.Window(<col_off>, <row_off>, <width>, <height>)]``.
     """
 
-    ## checks the blocksize input 
+    # checks the blocksize input
     value_error_msg = "'blocksize must be an integer or a list of two integers.'"
     if isinstance(blocksize_xy, int):
         blockxsize, blockysize = (blocksize_xy, blocksize_xy)
@@ -306,7 +309,7 @@ def windows_from_blocksize(blocksize_xy, width, height):
     else:
         raise ValueError(value_error_msg)
 
-    ## create the col_off and row_off elements for all windows 
+    # create the col_off and row_off elements for all windows
     n_cols = int(np.ceil(width / blockxsize))
     n_rows = int(np.ceil(height / blockysize))
     col = list(range(n_cols)) * n_rows
@@ -314,9 +317,9 @@ def windows_from_blocksize(blocksize_xy, width, height):
     row = np.repeat(list(range(n_rows)), n_cols)
     row_off = row * blockysize
 
-    ## create the windows
-    ## if necessary, reduce the width and/or height of the border windows  
-    windows = []
+    # create the windows
+    # if necessary, reduce the width and/or height of the border windows
+    blocksize_wins = []
     for ridx, roff, cidx, coff, in zip(row, row_off, col, col_off):
         if coff + blockxsize > width:
             bxsize = width - coff
@@ -326,5 +329,5 @@ def windows_from_blocksize(blocksize_xy, width, height):
             bysize = height - roff
         else:
             bysize = blockysize
-        windows.append([[ridx, cidx], rasterio.windows.Window(coff, roff, bxsize, bysize)])
-    return windows
+        blocksize_wins.append([[ridx, cidx], rasterio.windows.Window(coff, roff, bxsize, bysize)])
+    return blocksize_wins

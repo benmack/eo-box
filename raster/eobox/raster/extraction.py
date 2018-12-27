@@ -50,7 +50,7 @@ def extract(src_vector: str,
     if src_raster_template is None:
         src_raster_template = src_raster[0]
     path_rasterized = os.path.join(dst_dir, f"burn_attribute_rasterized_{burn_attribute}.tif")
-    paths_extracted_aux = {ele:os.path.join(dst_dir, f"{ele}.npy") \
+    paths_extracted_aux = {ele: os.path.join(dst_dir, f"{ele}.npy") \
                            for ele in [f"aux_vector_{burn_attribute}",
                                        "aux_coord_x",
                                        "aux_coord_y"]}
@@ -59,7 +59,7 @@ def extract(src_vector: str,
 
     if not os.path.exists(dst_dir):
         os.makedirs(dst_dir)
-    ## if it does not already exist, here we first create the rasterized data
+    # if it does not already exist, here we first create the rasterized data
     if not os.path.exists(path_rasterized):
         if src_raster_template is None:
             src_raster_template = src_raster[0]
@@ -87,28 +87,27 @@ def extract(src_vector: str,
     else:
         return 0
 
-    ## create the pixel coordinates if they do not exist
+    # create the pixel coordinates if they do not exist
     if not all([os.path.exists(paths_extracted_aux["aux_coord_x"]),
                 os.path.exists(paths_extracted_aux["aux_coord_y"])]):
-        coords_x = rasterio.transform.xy(src.meta["transform"],
-                                         rows=[0] * src.meta["width"],
-                                         cols=np.arange(src.meta["width"]),
-                                         offset='center')[0]
-        coords_y = rasterio.transform.xy(src.meta["transform"],
-                                         rows=np.arange(src.meta["height"]),
-                                         cols=[0] * src.meta["height"],
-                                         offset='center')[1]
-        xvals, yvals = np.meshgrid(coords_x, coords_y)
-        del coords_x
-        del coords_y
-        coords_x = np.expand_dims(xvals, axis=0)[mask_arr]
-        np.save(paths_extracted_aux["aux_coord_x"], coords_x)
-        del xvals, coords_x
-        coords_y = np.expand_dims(yvals, axis=0)[mask_arr]
-        np.save(paths_extracted_aux["aux_coord_y"], coords_y)
-        del yvals, coords_y
+        coords = {"x": rasterio.transform.xy(src.meta["transform"],
+                                             rows=[0] * src.meta["width"],
+                                             cols=np.arange(src.meta["width"]),
+                                             offset='center')[0],
+                  "y": rasterio.transform.xy(src.meta["transform"],
+                                             rows=np.arange(src.meta["height"]),
+                                             cols=[0] * src.meta["height"],
+                                             offset='center')[1]}
+        coords_2d_array_x, coords_2d_array_y = np.meshgrid(coords["x"], coords["y"])
+        del coords
+        np.save(paths_extracted_aux["aux_coord_x"],
+                np.expand_dims(coords_2d_array_x, axis=0)[mask_arr])
+        del coords_2d_array_x
+        np.save(paths_extracted_aux["aux_coord_y"],
+                np.expand_dims(coords_2d_array_y, axis=0)[mask_arr])
+        del coords_2d_array_y
 
-    ## finally lets extract the raster values where necessary
+    # finally lets extract the raster values where necessary
     for path_src, path_dst in tqdm(paths_extracted_raster.items(),
                                    total=len(paths_extracted_raster)):
         if os.path.exists(path_dst):
@@ -118,6 +117,7 @@ def extract(src_vector: str,
             raster_vals = src.read()[mask_arr]
             np.save(path_dst, raster_vals)
     return 0
+
 
 def load_extracted(src_dir: str,
                    patterns="*.npy",
