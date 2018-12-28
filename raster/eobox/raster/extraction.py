@@ -19,7 +19,8 @@ def extract(src_vector: str,
             dst_names: list,
             dst_dir: str,
             src_raster_template: str = None,
-            gdal_dtype: int = 4):
+            gdal_dtype: int = 4,
+            n_jobs: int = 1):
     """Extract values from list of single band raster for pixels overlapping with a vector data.
 
     The extracted data will be stored in the ``dst_dir`` by using the ``dst_names`` for the
@@ -54,8 +55,11 @@ def extract(src_vector: str,
                            for ele in [f"aux_vector_{burn_attribute}",
                                        "aux_coord_x",
                                        "aux_coord_y"]}
-    paths_extracted_raster = {path:f"{os.path.join(dst_dir, name)}.npy" \
-                              for path, name in zip(src_raster, dst_names)}
+    paths_extracted_raster = {}
+    for path, name in zip(src_raster, dst_names):
+        dst = f"{os.path.join(dst_dir, name)}.npy"
+        if not os.path.exists(dst):
+            paths_extracted_raster[path] = dst
 
     if not os.path.exists(dst_dir):
         os.makedirs(dst_dir)
@@ -107,16 +111,29 @@ def extract(src_vector: str,
                 np.expand_dims(coords_2d_array_y, axis=0)[mask_arr])
         del coords_2d_array_y
 
-    # finally lets extract the raster values where necessary
-    for path_src, path_dst in tqdm(paths_extracted_raster.items(),
-                                   total=len(paths_extracted_raster)):
-        if os.path.exists(path_dst):
-            continue
+    # lets extract the raster values in case of sequential processing
+    # or remove existing raster layers to prepare parallel processing
+    if n_jobs == 1:
+        for path_src, path_dst in tqdm(paths_extracted_raster.items(),
+                                       total=len(paths_extracted_raster)):
+            _extract_and_save_one_layer(path_src, path_dst, mask_arr)
+    else:
+        import multiprocessing as mp
+        if n_jobs == -1:
+            n_jobs = mp.cpu_count()
+        pool = mp.Pool(processes=n_jobs)
+        [pool.apply_async(_extract_and_save_one_layer,
+                          args=(src, dst, mask_arr)) for src, dst in paths_extracted_raster.items()]
+        pool.close()
+        pool.join()
 
-        with rasterio.open(path_src) as src:
-            raster_vals = src.read()[mask_arr]
-            np.save(path_dst, raster_vals)
     return 0
+
+
+def _extract_and_save_one_layer(path_src, path_dst, mask_arr):
+    with rasterio.open(path_src) as src:
+        raster_vals = src.read()[mask_arr]
+        np.save(path_dst, raster_vals)
 
 
 def load_extracted(src_dir: str,
