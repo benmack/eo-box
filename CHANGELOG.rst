@@ -1,7 +1,7 @@
 Change Log
 ==========
 
-All notable changes to ``sentinelsat`` will be listed here.
+All notable changes to **eo-box** will be listed here.
 
 [develop] – YYYY-MM-DD
 ----------------------
