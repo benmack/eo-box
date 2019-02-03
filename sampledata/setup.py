@@ -25,7 +25,6 @@ def get_version():
             version = version.strip('"').strip("'")
     return version
 
-
 setup(name='eo-box-sampledata',
       python_requires='>=3.5',
       version=get_version(),
@@ -39,5 +38,7 @@ setup(name='eo-box-sampledata',
       packages=find_packages(),
       install_requires=parse_requirements("requirements.txt"),
       include_package_data=True,
-      package_data={'eobox/sampledata/data': ['s2l1c/**/*jp2', 's2l1c/s2l1c_ref.gpkg']},
+      package_data={'eobox/sampledata/data/s2l1c': ['s2l1c/**/*jp2', 's2l1c/s2l1c_ref.gpkg'],
+                    'eobox/sampledata/data/lsts': ['lsts/**/*tif']
+                    },
       zip_safe=False)
