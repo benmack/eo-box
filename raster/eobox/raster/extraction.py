@@ -80,36 +80,14 @@ def extract(src_vector: str,
     if not (all([os.path.exists(path) for path in paths_extracted_aux.values()]) and \
             all([os.path.exists(path) for path in paths_extracted_raster.values()])):
         # print("Creating mask array for pixels to be extracted.")
-        with rasterio.open(path_rasterized) as src:
-            fids_arr = src.read()
-            mask_arr = fids_arr > 0
-            if not os.path.exists(paths_extracted_aux[f"aux_vector_{burn_attribute}"]):
-                fids = fids_arr[mask_arr]
-                del fids_arr
-                np.save(paths_extracted_aux[f"aux_vector_{burn_attribute}"], fids)
-                del fids
+        mask_arr = _get_mask_array(path_rasterized, paths_extracted_aux, burn_attribute)
     else:
         return 0
 
     # create the pixel coordinates if they do not exist
     if not all([os.path.exists(paths_extracted_aux["aux_coord_x"]),
                 os.path.exists(paths_extracted_aux["aux_coord_y"])]):
-        coords = {"x": rasterio.transform.xy(src.meta["transform"],
-                                             rows=[0] * src.meta["width"],
-                                             cols=np.arange(src.meta["width"]),
-                                             offset='center')[0],
-                  "y": rasterio.transform.xy(src.meta["transform"],
-                                             rows=np.arange(src.meta["height"]),
-                                             cols=[0] * src.meta["height"],
-                                             offset='center')[1]}
-        coords_2d_array_x, coords_2d_array_y = np.meshgrid(coords["x"], coords["y"])
-        del coords
-        np.save(paths_extracted_aux["aux_coord_x"],
-                np.expand_dims(coords_2d_array_x, axis=0)[mask_arr])
-        del coords_2d_array_x
-        np.save(paths_extracted_aux["aux_coord_y"],
-                np.expand_dims(coords_2d_array_y, axis=0)[mask_arr])
-        del coords_2d_array_y
+        _create_and_save_coords(path_rasterized, paths_extracted_aux, mask_arr)
 
     # lets extract the raster values in case of sequential processing
     # or remove existing raster layers to prepare parallel processing
@@ -122,12 +100,42 @@ def extract(src_vector: str,
         if n_jobs == -1:
             n_jobs = mp.cpu_count()
         pool = mp.Pool(processes=n_jobs)
-        [pool.apply_async(_extract_and_save_one_layer,
-                          args=(src, dst, mask_arr)) for src, dst in paths_extracted_raster.items()]
+        _ = [pool.apply_async(_extract_and_save_one_layer,
+                              args=(src, dst, mask_arr)) for \
+                                  src, dst in paths_extracted_raster.items()]
         pool.close()
         pool.join()
-
     return 0
+
+def _get_mask_array(path_rasterized, paths_extracted_aux, burn_attribute):
+    with rasterio.open(path_rasterized) as src:
+        fids_arr = src.read()
+        mask_arr = fids_arr > 0
+        if not os.path.exists(paths_extracted_aux[f"aux_vector_{burn_attribute}"]):
+            fids = fids_arr[mask_arr]
+            del fids_arr
+            np.save(paths_extracted_aux[f"aux_vector_{burn_attribute}"], fids)
+            del fids
+    return mask_arr
+
+def _create_and_save_coords(path_rasterized, paths_extracted_aux, mask_arr):
+    src = rasterio.open(path_rasterized)
+    coords = {"x": rasterio.transform.xy(src.meta["transform"],
+                                         rows=[0] * src.meta["width"],
+                                         cols=np.arange(src.meta["width"]),
+                                         offset='center')[0],
+              "y": rasterio.transform.xy(src.meta["transform"],
+                                         rows=np.arange(src.meta["height"]),
+                                         cols=[0] * src.meta["height"],
+                                         offset='center')[1]}
+    coords_2d_array_x, coords_2d_array_y = np.meshgrid(coords["x"], coords["y"])
+    del coords
+    np.save(paths_extracted_aux["aux_coord_x"],
+            np.expand_dims(coords_2d_array_x, axis=0)[mask_arr])
+    del coords_2d_array_x
+    np.save(paths_extracted_aux["aux_coord_y"],
+            np.expand_dims(coords_2d_array_y, axis=0)[mask_arr])
+    del coords_2d_array_y
 
 
 def _extract_and_save_one_layer(path_src, path_dst, mask_arr):
