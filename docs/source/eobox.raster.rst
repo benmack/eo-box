@@ -13,3 +13,5 @@ Submodules:
    eobox.raster.extraction
    
    eobox.raster.rasterprocessing
+
+   eobox.raster.gdalutils
