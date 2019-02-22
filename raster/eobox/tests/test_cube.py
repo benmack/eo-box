@@ -1,6 +1,4 @@
 import pytest
-import fnmatch
-import os
 import pandas as pd
 from pathlib import Path
 
@@ -14,10 +12,11 @@ def eocube_input_1(tmpdir):
     dataset = sampledata.get_dataset("lsts")
     layers_paths = [Path(p) for p in dataset["raster_files"]]
     layers_df = pd.Series([p.stem for p in layers_paths]).str.split("_", expand=True) \
-    .rename({0: "sceneid", 1:"band"}, axis=1)
+                .rename({0: "sceneid", 1:"band"}, axis=1)
 
     layers_df["date"] = pd.to_datetime(layers_df.sceneid.str[9:16], format="%Y%j")
-    layers_df["uname"] = layers_df.sceneid.str[:3] + "_" + layers_df.date.dt.strftime("%Y-%m-%d") + "_" + layers_df.band.str[::] 
+    layers_df["uname"] = layers_df.sceneid.str[:3] + "_" + layers_df.date.dt.strftime("%Y-%m-%d") + \
+                         "_" + layers_df.band.str[::] 
     layers_df["path"] = layers_paths
 
     layers_df = layers_df.sort_values(["date", "band"])
@@ -31,6 +30,30 @@ def eocube_input_1(tmpdir):
     }
     return input_kwargs
 
+@pytest.fixture
+def eocube_input_onescene(tmpdir):
+    dataset = sampledata.get_dataset("lsts")
+    layers_paths = [Path(p) for p in dataset["raster_files"][:4]]
+    layers_df = pd.Series([p.stem for p in layers_paths]).str.split("_", expand=True) \
+    .rename({0: "sceneid", 1:"band"}, axis=1)
+
+    layers_df["date"] = pd.to_datetime(layers_df.sceneid.str[9:16], format="%Y%j")
+    layers_df["uname"] = layers_df.sceneid.str[:3] + "_" + layers_df.date.dt.strftime("%Y-%m-%d") + "_" + layers_df.band.str[::] 
+    layers_df["path"] = layers_paths
+
+    layers_df = layers_df.sort_values(["date", "band"])
+    layers_df = layers_df.reset_index(drop=True)
+
+    a_tmpdir = tmpdir.mkdir("temp_dst_dir-onescene")
+    # print(a_tmpdir)
+    dst_paths = [Path(a_tmpdir) / (Path(p).stem+".vrt") for p in layers_df["path"]]
+
+    input_kwargs = {
+            "layers_df": layers_df,
+            "tmpdir": a_tmpdir,
+            "dst_paths": dst_paths
+    }
+    return input_kwargs
 
 def test_eocube_initialization(eocube_input_1):
     df_layers = eocube_input_1["df_layers"]
@@ -120,3 +143,22 @@ def test_eoc_chunk_convert_data_to_ndarray(eocube_input_1):
     assert eoc_chunk._data_structure == "DataFrame"
     eoc_chunk = eoc_chunk.convert_data_to_ndarray()
     assert (data_ndarray == eoc_chunk.data).all()
+
+# back to EOCube tests
+
+def test_eocube_read_and_write(eocube_input_onescene):
+
+    def convert_to_chunk_data(eoc_chunk, dst_paths):
+        result = eoc_chunk.read_data().data
+        eoc_chunk.write_ndarray(result=result, dst_paths=dst_paths)
+        return dst_paths
+    df_layers = eocube_input_onescene["layers_df"]
+    tmpdir = eocube_input_onescene["tmpdir"]
+    dst_paths = eocube_input_onescene["dst_paths"]
+    eoc = cube.EOCube(df_layers, chunksize=2**5)
+    
+    assert dst_paths[0].parent.exists()
+    assert len(list(Path(tmpdir).rglob("*.vrt"))) == 0
+    assert all([~p.exists() for p in dst_paths])
+    eoc.apply_and_write(convert_to_chunk_data, dst_paths=dst_paths)
+    assert all([p.exists() for p in dst_paths])

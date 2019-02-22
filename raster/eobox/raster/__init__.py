@@ -7,3 +7,4 @@ __version__ = '0.2.0'
 from .extraction import extract
 from .extraction import load_extracted
 from .rasterprocessing import MultiRasterIO
+from .rasterprocessing import windows_from_blocksize
