@@ -17,3 +17,5 @@ raster
     examples/raster/cube_an_intro_to_eocube.ipynb
 
     examples/raster/cube_calculate_virtual_time_series_with_eocube.ipynb
+
+    examples/raster/cube_eocubescenecollection_and_virtual_time_series.ipynb
