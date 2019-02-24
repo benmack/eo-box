@@ -145,7 +145,6 @@ def test_eoc_chunk_convert_data_to_ndarray(eocube_input_1):
     assert (data_ndarray == eoc_chunk.data).all()
 
 # back to EOCube tests
-
 def test_eocube_read_and_write(eocube_input_onescene):
 
     def convert_to_chunk_data(eoc_chunk, dst_paths):
@@ -162,3 +161,5 @@ def test_eocube_read_and_write(eocube_input_onescene):
     assert all([~p.exists() for p in dst_paths])
     eoc.apply_and_write(convert_to_chunk_data, dst_paths=dst_paths)
     assert all([p.exists() for p in dst_paths])
+
+# EOCubeImageCollection

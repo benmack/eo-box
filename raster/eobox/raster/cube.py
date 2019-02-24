@@ -1,12 +1,18 @@
+import numpy as np
 import pandas as pd
 from pathlib import Path
 import rasterio
+import time
 from tqdm import tqdm
 
 from eobox.raster import MultiRasterIO
 from eobox.raster.gdalutils import buildvrt
 
-class EOCube():
+from .utils import dtype_checker_df
+from .utils import cleanup_df_values_for_given_dtype
+
+
+class EOCubeAbstract():
     def __init__(self, df_layers, chunksize=2**5, wdir=None):
         self._df_layers = df_layers
         self._chunksize = chunksize
@@ -50,6 +56,19 @@ class EOCube():
             self._mrio = MultiRasterIO(layer_files=self.df_layers["path"].values)
             self._mrio = self._mrio.windows_from_blocksize(self.chunksize)
 
+    def get_chunk_path_from_layer_path(self, path_layer, ji, mkdir=True):
+        path_layer = Path(path_layer)
+        bdir_chunks = path_layer.parent / f"xchunks_cs{self.chunksize}" / path_layer.stem
+        if mkdir:
+            bdir_chunks.mkdir(exist_ok=True, parents=True)
+        ndigits = len(str((self.n_chunks)))
+        dst_path_chunk = bdir_chunks / (path_layer.stem + f"_ji-{ji:0{ndigits}d}.tif")
+        return dst_path_chunk
+
+class EOCube(EOCubeAbstract):
+    def __init__(self, df_layers, chunksize=2**5, wdir=None):
+        super().__init__(df_layers=df_layers, chunksize=chunksize, wdir=wdir)
+
     def get_chunk(self, ji):
         """Get a EOCubeChunk"""
         return EOCubeChunk.from_eocube(self, ji)
@@ -71,15 +90,6 @@ class EOCube():
             if not Path(pth).exists():
                 self.create_vrt_from_chunks(pth)
 
-    def get_chunk_path_from_layer_path(self, path_layer, ji, mkdir=True):
-        path_layer = Path(path_layer)
-        bdir_chunks = path_layer.parent / f"xchunks_cs{self.chunksize}" / path_layer.stem
-        if mkdir:
-            bdir_chunks.mkdir(exist_ok=True, parents=True)
-        ndigits = len(str((self.n_chunks)))
-        dst_path_chunk = bdir_chunks / (path_layer.stem + f"_ji-{ji:0{ndigits}d}.tif")
-        return dst_path_chunk
-
     def create_vrt_from_chunks(self, dst_path):
         chunk_paths = []
         for ji in range(self.n_chunks):
@@ -92,7 +102,7 @@ class EOCube():
         buildvrt(chunk_paths, str(dst_path), relative=True)
 
 
-class EOCubeChunk(EOCube):
+class EOCubeChunk(EOCubeAbstract):
     def __init__(self, ji, df_layers, chunksize=2**5, wdir=None):
         super().__init__(df_layers=df_layers, chunksize=chunksize, wdir=wdir)
         self._ji = ji
@@ -198,3 +208,271 @@ class EOCubeChunk(EOCube):
         """Create a EOCubeChunk object from an EOCube object."""
         eocubewin = EOCubeChunk(ji, eocube.df_layers, eocube.chunksize, eocube.wdir)
         return eocubewin
+
+
+class EOCubeSceneCollectionAbstract(EOCubeAbstract):
+    def __init__(self,
+                 df_layers,
+                 chunksize,
+                 variables,
+                 qa,
+                 qa_valid,
+                 # timeless=None,
+                 wdir=None):
+
+        # validation and formatting
+        n_per_sceneid = len(variables) + 1 # i.e. qa layer
+        scenes_complete = df_layers.groupby("sceneid").apply(
+            lambda x: x["band"].isin(variables + [qa]).sum() == n_per_sceneid)
+        if not all(scenes_complete):
+            scenes_incomplete = scenes_complete.index[~scenes_complete].values
+            raise ValueError(f"Variable or qa layers missing in the following scenes: {scenes_incomplete}")
+        df_layers = df_layers.sort_values(["date", "sceneid", "band"])
+
+        EOCubeAbstract.__init__(self, df_layers=df_layers, chunksize=chunksize, wdir=wdir)
+        self._variables = variables
+        self._qa = qa
+        self._qa_valid = qa_valid
+        # self._timeless = timeless
+
+    @property
+    def variables(self):
+        return self._variables
+
+    @property
+    def qa(self):
+        return self._qa
+
+    @property
+    def qa_valid(self):
+        return self._qa_valid
+
+"""     @property
+    def timeless(self):
+        return self._timeless
+ """
+
+class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
+
+    def get_chunk(self, ji):
+        """Get a EOCubeChunk"""
+        return EOCubeSceneCollectionChunk(ji=ji,
+                                          df_layers=self.df_layers,
+                                          chunksize=self.chunksize,
+                                          variables=self.variables,
+                                          qa=self.qa,
+                                          qa_valid=self.qa_valid,
+                                          wdir=self.wdir)
+
+    def apply_and_write_by_variable(self,
+                                    fun,
+                                    dst_paths,
+                                    dtypes,
+                                    compress,
+                                    nodata,
+                                    **kwargs):
+
+        def check_variable_specific_args(arg, variables):
+            if isinstance(arg, dict):
+                if not set(arg.keys()) == set(self.variables):
+                    raise ValueError("'dtypes'-, 'nodata'-dicts keys must match (self.)variables.")
+                else:
+                    return arg # TODO: better validate the args before
+            else:
+                # TODO: validate the args before
+                return {var: arg for var in variables}
+
+        dtypes = check_variable_specific_args(dtypes, self.variables)
+        nodata = check_variable_specific_args(nodata, self.variables)
+        compress = check_variable_specific_args(compress, self.variables)
+
+        ji_process = {}
+        for var in self.variables:
+            ji_process[var] = []
+            counter = 0
+            for ji in range(self.n_chunks):
+                dst_paths_ji_exist = [self.get_chunk_path_from_layer_path(
+                    dst, ji, mkdir=False).exists() for dst in dst_paths[var]]
+                if all(dst_paths_ji_exist):
+                    counter += 1
+                else:
+                    ji_process[var].append(ji)
+            if len(ji_process[var]) != self.n_chunks:
+                print(f"{var}: {counter} / {self.n_chunks} chunks already processed and skipped.")
+
+        # a sorted list of all chunks that we need to run somewhere
+        ji_process_over_all_variables = []
+        for key, process in ji_process.items():
+            ji_process_over_all_variables += process
+        ji_process_over_all_variables = np.unique(ji_process_over_all_variables)
+
+        for ji in tqdm(ji_process_over_all_variables, total=len(ji_process)):
+            eoc_chunk = self.get_chunk(ji)
+            eoc_chunk = eoc_chunk.read_data_by_variable(mask=True)
+            results = {}
+            for var in self.variables:
+                if ji in ji_process[var]:
+                    results[var] = fun(eoc_chunk.data[var], **kwargs)
+                    results[var] = cleanup_df_values_for_given_dtype(results[var],
+                                                                     dtype=dtypes[var],
+                                                                     lower_as=None,
+                                                                     higher_as=None,
+                                                                     nan_as=None)
+                    eoc_chunk.write_dataframe(results[var],
+                                              dst_paths[var],
+                                              nodata[var],
+                                              compress[var])
+        for var in self.variables:
+            for pth in dst_paths[var]:
+                if not Path(pth).exists():
+                    self.create_vrt_from_chunks(pth)
+
+    def create_virtual_time_series(self,
+                                   idx_virtual,
+                                   dst_pattern, #"./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
+                                   dtypes,
+                                   compress="lzw",
+                                   nodata=None,
+                                   num_workers=1):
+        dst_paths = {}
+        for var in self.variables:
+            dst_paths[var] = []
+            for date in idx_virtual:
+                dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
+        assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+
+        self.apply_and_write_by_variable(mask=True,
+                                         fun=create_virtual_time_series,
+                                         dst_paths=dst_paths,
+                                         dtypes=dtypes,
+                                         compress=compress,
+                                         nodata=nodata,
+                                         idx_virtual=idx_virtual,
+                                         num_workers=num_workers,
+                                         verbosity=0)
+
+
+class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
+    def __init__(self,
+                 ji,
+                 df_layers,
+                 chunksize,
+                 variables,
+                 qa,
+                 qa_valid,
+                 # timeless=None,
+                 wdir=None):
+        EOCubeSceneCollectionAbstract.__init__(self,
+                                               df_layers=df_layers,
+                                               chunksize=chunksize,
+                                               variables=variables,
+                                               qa=qa,
+                                               qa_valid=qa_valid,
+                                               wdir=wdir)
+        EOCubeChunk.__init__(self,
+                             ji=ji,
+                             df_layers=df_layers,
+                             chunksize=chunksize,
+                             wdir=wdir)
+
+    def read_data_by_variable(self, mask=True):
+        """Reads and masks (if desired) the data and converts it in one dataframe per variable."""
+        def print_elapsed_time(start, last_stopped, prefix):
+            print(f"{prefix} - Elapsed time [s] since start / last stopped: \
+                {(int(time.time() - start_time))} / {(int(time.time() - last_stopped))}")
+            return time.time()
+        start_time = time.time()
+        last_stopped = time.time()
+        last_stopped = print_elapsed_time(start_time, last_stopped, "Starting chunk function")
+
+        verbose = False
+
+        self.read_data()
+        last_stopped = print_elapsed_time(start_time, last_stopped, "Data read")
+
+        # 2.
+        sc_chunk = self.convert_data_to_dataframe()
+        last_stopped = print_elapsed_time(start_time, last_stopped, "Data converted to df")
+
+
+        # 3.B.
+        if mask:
+            # 3.A.
+            ilocs_qa = np.where((self.df_layers["band"] == self.qa).values)[0]
+            df_qa = self.data.iloc[:, ilocs_qa]
+            df_qa.columns = self.df_layers["date"].iloc[ilocs_qa]
+            df_clearsky = df_qa.isin(self.qa_valid)
+            last_stopped = print_elapsed_time(start_time, last_stopped, "Clearsky df created")
+
+            return_bands = self.variables
+        else:
+            return_bands = self.variables + [self.qa]
+
+        dfs_variables = {}
+        for var in return_bands:
+            if verbose:
+                print("VARIABLE:", var)
+            ilocs_var = np.where((self.df_layers["band"] == var).values)[0]
+            df_var = self.data.iloc[:, ilocs_var]
+            df_var.columns = self.df_layers["date"].iloc[ilocs_var]
+            if mask:
+                df_var = df_var.where(df_clearsky, other=np.nan)
+            dfs_variables[var] = df_var
+        last_stopped = print_elapsed_time(start_time, last_stopped, "Clearsky df created")
+        self._data = dfs_variables
+        return self
+
+
+def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
+
+    def _create_virtual_time_series_core(df, idx_virtual, verbosity=0):
+
+        if verbosity:
+            print("Shape of input dataframe:", df.shape)
+
+        transpose_before_return = False
+        if isinstance(df.columns, pd.DatetimeIndex):
+            transpose_before_return = True
+            df = df.transpose()
+
+        # define the virtual points in the time series index
+        # idx_virtual = df.resample(rule).asfreq().index
+        if not df.index.is_unique:
+            if verbosity:
+                print(f"Aggregating (max) data with > observations per day: {df.index[df.index.duplicated()]}")
+            df = df.groupby(level=0).max()
+            assert df.index.is_unique
+
+        if verbosity:
+            print("Length of virtual time series:", len(idx_virtual))
+        # add the existing time series points to the virtual time series index
+        idx_virtual_and_data = idx_virtual.append(df.index).unique()
+        idx_virtual_and_data = idx_virtual_and_data.sort_values()
+        if verbosity:
+            print("Length of virtual and data time series:", len(idx_virtual_and_data))
+        # extend the time series data such that it contains all existing and virtual time series points
+        df = df.reindex(index=idx_virtual_and_data)
+        # interpolate between dates and forward/backward fill edges with closest values
+        df = df.interpolate(method='time')
+        df = df.bfill()
+        df = df.ffill()
+        df = df.loc[idx_virtual]
+
+        if transpose_before_return:
+            df = df.transpose()
+        if verbosity:
+            print("Shape of output dataframe:", df.shape)
+        return df
+
+    if (num_workers > 1) or (num_workers == -1):
+        import dask.dataframe as dd
+        df_var = dd.from_pandas(df_var, npartitions=num_workers)
+        df_result = df_var.map_partitions(_create_virtual_time_series_core,
+                                          idx_virtual=idx_virtual,
+                                          verbosity=verbosity)
+        df_result = df_result.compute(scheduler='processes', num_workers=num_workers)
+    else:
+        df_result = _create_virtual_time_series_core(df_var,
+                                                     idx_virtual,
+                                                     verbosity=verbosity)
+    return df_result
