@@ -341,7 +341,7 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                 dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
         assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
 
-        self.apply_and_write_by_variable(mask=True,
+        self.apply_and_write_by_variable(# mask=True,
                                          fun=create_virtual_time_series,
                                          dst_paths=dst_paths,
                                          dtypes=dtypes,
@@ -378,8 +378,8 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
     def read_data_by_variable(self, mask=True):
         """Reads and masks (if desired) the data and converts it in one dataframe per variable."""
         def print_elapsed_time(start, last_stopped, prefix):
-            print(f"{prefix} - Elapsed time [s] since start / last stopped: \
-                {(int(time.time() - start_time))} / {(int(time.time() - last_stopped))}")
+            # print(f"{prefix} - Elapsed time [s] since start / last stopped: \
+            #     {(int(time.time() - start_time))} / {(int(time.time() - last_stopped))}")
             return time.time()
         start_time = time.time()
         last_stopped = time.time()
