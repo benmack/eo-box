@@ -1,5 +1,5 @@
 from os.path import relpath
-from osgeo import gdal
+from osgeo import gdal, gdalconst
 from pathlib import Path
 
 
@@ -74,4 +74,77 @@ def buildvrt(input_file_list, output_file,
 
         with open(output_file, 'w') as file:
             file.writelines(new_lines)
+    return 0
+
+def reproject_on_template_raster(src_file, dst_file, template_file, resampling="near", compress=None, overwrite=False):
+    """Reproject a one-band raster to fit the projection, extend, pixel size etc. of a template raster.  
+    
+    Function based on https://stackoverflow.com/questions/10454316/how-to-project-and-resample-a-grid-to-match-another-grid-with-gdal-python
+
+    Arguments:
+        src_file {str} -- Filename of the source one-band raster. 
+        dst_file {str} -- Filename of the destination raster. 
+        template_file {str} -- Filename of the template raster.
+        resampling {str} -- Resampling type:
+             'near' (default), 'bilinear', 'cubic', 'cubicspline', 'lanczos', 'average', 'mode', 'max', 'min', 'med', 'q1', 'q3',
+            see https://www.gdal.org/gdalwarp.html -r parameter.
+        compress {str} -- Compression type: None (default), 'lzw', 'packbits', 'defalte'.
+    """
+    
+    if not overwrite and Path(dst_file).exists():
+        print("Processing skipped. Destination file exists.")
+        return 0
+    
+    GDAL_RESAMPLING_ALGORITHMS = {
+        "bilinear": "GRA_Bilinear",
+        "cubic": "GRA_Cubic",
+        "cubicspline": "GRA_CubicSpline",
+        "lanczos": "GRA_Lanczos",
+        "average": "GRA_Average",
+        "mode": "GRA_Mode",
+        "max": "GRA_Max",
+        "min": "GRA_Min",
+        "med": "GRA_Med",
+        "near": "GRA_NearestNeighbour",
+        "q1": "GRA_Q1",
+        "q3": "GRA_Q3"
+    }
+
+    compressions = ["lzw", "packbits", "deflate"]
+
+    if resampling not in GDAL_RESAMPLING_ALGORITHMS.keys():
+        raise ValueError(f"'resampling must be one of {', '.join(GDAL_RESAMPLING_ALGORITHMS.keys())}")
+
+    if compress is None:
+        options = []
+    else:
+        if compress.lower() not in compressions:
+            raise ValueError(f"'compress must be one of {', '.join(compressions)}")
+        else:
+            options = [f'COMPRESS={compress.upper()}']
+    
+    # Source
+    src = gdal.Open(src_file, gdalconst.GA_ReadOnly)
+    src_band = src.GetRasterBand(1)
+    src_proj = src.GetProjection()
+
+    # We want a section of source that matches this:
+    match_ds = gdal.Open(template_file, gdalconst.GA_ReadOnly)
+    match_proj = match_ds.GetProjection()
+    match_geotrans = match_ds.GetGeoTransform()
+    wide = match_ds.RasterXSize
+    high = match_ds.RasterYSize
+
+    # Output / destination
+    Path(dst_file).parent.mkdir(parents=True, exist_ok=True)
+    dst = gdal.GetDriverByName('GTiff').Create(dst_file, wide, high, 1, src_band.DataType, options=options)
+    dst.SetGeoTransform( match_geotrans )
+    dst.SetProjection( match_proj)
+
+    # Do the work
+    gdal.ReprojectImage(src, dst, src_proj, match_proj, 
+                        getattr(gdalconst, GDAL_RESAMPLING_ALGORITHMS[resampling]))
+
+
+    del dst # Flush
     return 0
