@@ -65,6 +65,41 @@ class EOCubeAbstract():
         dst_path_chunk = bdir_chunks / (path_layer.stem + f"_ji-{ji:0{ndigits}d}.tif")
         return dst_path_chunk
 
+    def get_df_ilocs(self, band, date):
+        """Get positions of rows matching specific band(s) and date(s).
+
+        The method supports three typical queries:
+
+        * one band and one date (both given as strings)
+
+        * one band and of several dates (band given as strings, date as list of strings)
+
+        * several band and of one date (date given as strings, band as list of strings)
+
+        Arguments:
+            band {str or list} -- Band(s) for which to derive the iloc index.
+            date {str or list} -- Date(s) for which to derive the iloc index.
+
+        Returns:
+            int or list -- Integer (if band and date are str) or list of iloc indices.
+        """
+
+        df = self.df_layers.copy()
+        df["index"] = range(df.shape[0])
+
+        idx_layers = []
+        if isinstance(band, str) and isinstance(date, str):
+            idx_layers = df[(df["date"] == date) &  (df["band"] == band)]["index"].values[0]
+        if isinstance(band, list) and isinstance(date, str):
+            for b in band:
+                idx = df[(df["date"] == date) &  (df["band"] == b)]["index"].values[0]
+                idx_layers.append(idx)
+        elif isinstance(band, str) and isinstance(date, list):
+            for d in date:
+                idx = df[(df["band"] == band) &  (df["date"] == d)]["index"].values[0]
+                idx_layers.append(idx)
+        return idx_layers
+
 class EOCube(EOCubeAbstract):
     def __init__(self, df_layers, chunksize=2**5, wdir=None):
         super().__init__(df_layers=df_layers, chunksize=chunksize, wdir=wdir)
@@ -113,7 +148,8 @@ class EOCubeChunk(EOCubeAbstract):
         self._height = self._window.height
         self._n_layers = self.df_layers.shape[0]
         self.result = None
-
+        self._spatial_bounds = self._get_spatial_bounds()
+        
     @property
     def ji(self):
         return self._ji
@@ -126,12 +162,29 @@ class EOCubeChunk(EOCubeAbstract):
     def chunksize(self):
         return self._chunksize
 
+    @property
+    def spatial_bounds(self):
+        return self._spatial_bounds
+
     @chunksize.setter
     def chunksize(self, value):
         raise NotImplementedError("It is not allowed to set the EOCubeChunk chunksize (but of a EOCube object).")
 
+    def _get_spatial_bounds(self):
+        """Get the spatial bounds of the chunk.""" 
+        # This should be a MultiRasterIO method
+        with rasterio.open(self._mrio._get_template_for_given_resolution(self._mrio.dst_res, "path")) as src_layer:
+            pass # later we need src_layer for src_layer.window_transform(win)
+        win_transform = src_layer.window_transform(self._window)
+        bounds = rasterio.windows.bounds(window=self._window,
+                                         transform=win_transform,
+                                         height=0, width=0)
+        return bounds
+
     def read_data(self):
         self._data = self._mrio.get_arrays(self.ji)
+        if self.data.shape[0] * self.data.shape[1] != self._width * self._height:
+            raise Exception(f"X/Y dimension size of extracted window (={'/'.join(self.data.shape)}) different from expected shape (={self._width}/{self._height}).")
         self._update_data_structure()
         return self
 
@@ -197,6 +250,92 @@ class EOCubeChunk(EOCubeAbstract):
                            "transform": src_layer.window_transform(self._window)})
             with rasterio.open(dst_path_chunk, "w", **kwargs) as dst:
                 dst.write(result_layer_i[:, :, 0], 1)
+    
+    @staticmethod
+    def robust_data_range(arr, robust=False, vmin=None, vmax=None):
+        """Get a robust data range, i.e. 2nd and 98th percentile for vmin, vmax parameters."""
+        # from the seaborn code 
+        # https://github.com/mwaskom/seaborn/blob/3a3ec75befab52c02650c62772a90f8c23046038/seaborn/matrix.py#L201
+
+        def _get_vmin_vmax(arr2d, vmin=None, vmax=None):
+            if vmin is None:
+                vmin = np.percentile(arr2d, 2) if robust else arr2d.min()
+            if vmax is None:
+                vmax = np.percentile(arr2d, 98) if robust else arr2d.max()
+            return vmin, vmax
+
+        if len(arr.shape) == 3 and vmin is None and vmax is None:
+            vmin = []
+            vmax = []
+            for i in range(arr.shape[2]):
+                arr_i = arr[:, :, i]
+                vmin_i, vmax_i = _get_vmin_vmax(arr_i, vmin=None, vmax=None)
+                vmin.append(vmin_i)
+                vmax.append(vmax_i)
+        else:
+            vmin, vmax = _get_vmin_vmax(arr, vmin=vmin, vmax=vmax)
+        return vmin, vmax
+
+    def plot_raster(self,
+                    idx_layer,
+                    robust=False, vmin=None, vmax=None,
+                    spatial_bounds=False,
+                    figsize=None, ax=None):
+
+        import matplotlib.pyplot as plt
+
+        if self.data is None:
+            self.read_data()
+        arr = self.data[:, :, idx_layer]
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        vmin, vmax = self.robust_data_range(arr,
+                                            robust=robust,
+                                            vmin=vmin, vmax=vmax)
+        ax = ax.imshow(arr,
+                       extent=self.spatial_bounds if spatial_bounds else None,
+                       vmin=vmin, vmax=vmax)
+        return ax
+
+    def plot_raster_rgb(self,
+                        idx_layers,
+                        robust=False, vmin=None, vmax=None,
+                        spatial_bounds=False,
+                        figsize=None, ax=None):
+
+        import matplotlib.pyplot as plt
+
+        def _select_vmxx(vmxx, i):
+            """If vmxx is a list, return i-th value of the list, else return vmxx."""
+            if isinstance(vmxx, list):
+                return vmxx[i]
+            else:
+                return vmxx
+
+        if self.data is None:
+            self.read_data()
+        arr = self.data[:, :, idx_layers].astype(float)
+
+        for i in range(arr.shape[2]):
+            arr_i = arr[:, :, i]
+
+            vmin_i, vmax_i = self.robust_data_range(arr_i, 
+                                                    robust=robust, 
+                                                    vmin=_select_vmxx(vmin, i),
+                                                    vmax=_select_vmxx(vmax, i))
+            arr_i[arr_i < vmin_i] = vmin_i
+            arr_i[arr_i > vmax_i] = vmax_i
+            arr[:, :, i] = (arr_i - vmin_i) / (vmax_i - vmin_i)
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=figsize)
+        ax = ax.imshow(arr, 
+                       extent=self.spatial_bounds if spatial_bounds else None)
+
+        return ax
+
+    
 
     @staticmethod
     def _reshape_3to2d(arr_3d):
