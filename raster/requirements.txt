@@ -1,4 +1,5 @@
-numpy
 gdal
+numpy
+pandas
 rasterio
 tqdm
