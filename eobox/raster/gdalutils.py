@@ -3,8 +3,7 @@ from osgeo import gdal, gdalconst
 from pathlib import Path
 
 
-def buildvrt(input_file_list, output_file,
-             relative=True, **kwargs):
+def buildvrt(input_file_list, output_file, relative=True, **kwargs):
     """Build a VRT
 
     See also: https://www.gdal.org/gdalbuildvrt.html
@@ -36,9 +35,7 @@ def buildvrt(input_file_list, output_file,
 
     vrt_options = gdal.BuildVRTOptions(**kwargs)
 
-    vrt = gdal.BuildVRT(output_file,
-                        input_file_list,
-                        options=vrt_options)
+    vrt = gdal.BuildVRT(output_file, input_file_list, options=vrt_options)
     vrt = None
 
     # if needed, create the input file paths relative to the output vrt path
@@ -47,7 +44,7 @@ def buildvrt(input_file_list, output_file,
     if relative:
         input_file_list_relative = [relpath(p, Path(output_file).parent) for p in input_file_list]
 
-        with open(output_file, 'r') as file:
+        with open(output_file, "r") as file:
             # read a list of lines into data
             lines = file.readlines()
 
@@ -56,27 +53,28 @@ def buildvrt(input_file_list, output_file,
         for line in lines:
             # sometimes it is relative by default
             # maybe when all files contain the parent directory of the output file (?)
-            if "relativeToVRT=\"1\"" in line:
+            if 'relativeToVRT="1"' in line:
                 counter += 1
-            elif "relativeToVRT=\"0\"" in line:
+            elif 'relativeToVRT="0"' in line:
                 counter += 1
                 input_file = str(input_file_list[counter])
                 input_file_relative = str(input_file_list_relative[counter])
                 if input_file not in line:
                     raise Exception(f"Expect path {input_file} not part of line {line}.")
-                line = line.replace(input_file,
-                                    input_file_relative)
-                line = line.replace("relativeToVRT=\"0\"",
-                                    "relativeToVRT=\"1\"")
+                line = line.replace(input_file, input_file_relative)
+                line = line.replace('relativeToVRT="0"', 'relativeToVRT="1"')
             else:
                 pass
             new_lines.append(line)
 
-        with open(output_file, 'w') as file:
+        with open(output_file, "w") as file:
             file.writelines(new_lines)
     return 0
 
-def reproject_on_template_raster(src_file, dst_file, template_file, resampling="near", compress=None, overwrite=False):
+
+def reproject_on_template_raster(
+    src_file, dst_file, template_file, resampling="near", compress=None, overwrite=False
+):
     """Reproject a one-band raster to fit the projection, extend, pixel size etc. of a template raster.  
     
     Function based on https://stackoverflow.com/questions/10454316/how-to-project-and-resample-a-grid-to-match-another-grid-with-gdal-python
@@ -90,11 +88,11 @@ def reproject_on_template_raster(src_file, dst_file, template_file, resampling="
             see https://www.gdal.org/gdalwarp.html -r parameter.
         compress {str} -- Compression type: None (default), 'lzw', 'packbits', 'defalte'.
     """
-    
+
     if not overwrite and Path(dst_file).exists():
         print("Processing skipped. Destination file exists.")
         return 0
-    
+
     GDAL_RESAMPLING_ALGORITHMS = {
         "bilinear": "GRA_Bilinear",
         "cubic": "GRA_Cubic",
@@ -107,13 +105,15 @@ def reproject_on_template_raster(src_file, dst_file, template_file, resampling="
         "med": "GRA_Med",
         "near": "GRA_NearestNeighbour",
         "q1": "GRA_Q1",
-        "q3": "GRA_Q3"
+        "q3": "GRA_Q3",
     }
 
     compressions = ["lzw", "packbits", "deflate"]
 
     if resampling not in GDAL_RESAMPLING_ALGORITHMS.keys():
-        raise ValueError(f"'resampling must be one of {', '.join(GDAL_RESAMPLING_ALGORITHMS.keys())}")
+        raise ValueError(
+            f"'resampling must be one of {', '.join(GDAL_RESAMPLING_ALGORITHMS.keys())}"
+        )
 
     if compress is None:
         options = []
@@ -121,8 +121,8 @@ def reproject_on_template_raster(src_file, dst_file, template_file, resampling="
         if compress.lower() not in compressions:
             raise ValueError(f"'compress must be one of {', '.join(compressions)}")
         else:
-            options = [f'COMPRESS={compress.upper()}']
-    
+            options = [f"COMPRESS={compress.upper()}"]
+
     # Source
     src = gdal.Open(src_file, gdalconst.GA_ReadOnly)
     src_band = src.GetRasterBand(1)
@@ -137,14 +137,16 @@ def reproject_on_template_raster(src_file, dst_file, template_file, resampling="
 
     # Output / destination
     Path(dst_file).parent.mkdir(parents=True, exist_ok=True)
-    dst = gdal.GetDriverByName('GTiff').Create(dst_file, wide, high, 1, src_band.DataType, options=options)
-    dst.SetGeoTransform( match_geotrans )
-    dst.SetProjection( match_proj)
+    dst = gdal.GetDriverByName("GTiff").Create(
+        dst_file, wide, high, 1, src_band.DataType, options=options
+    )
+    dst.SetGeoTransform(match_geotrans)
+    dst.SetProjection(match_proj)
 
     # Do the work
-    gdal.ReprojectImage(src, dst, src_proj, match_proj, 
-                        getattr(gdalconst, GDAL_RESAMPLING_ALGORITHMS[resampling]))
+    gdal.ReprojectImage(
+        src, dst, src_proj, match_proj, getattr(gdalconst, GDAL_RESAMPLING_ALGORITHMS[resampling])
+    )
 
-
-    del dst # Flush
+    del dst  # Flush
     return 0

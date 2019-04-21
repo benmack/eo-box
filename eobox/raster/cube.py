@@ -12,8 +12,8 @@ from .utils import dtype_checker_df
 from .utils import cleanup_df_values_for_given_dtype
 
 
-class EOCubeAbstract():
-    def __init__(self, df_layers, chunksize=2**5, wdir=None):
+class EOCubeAbstract:
+    def __init__(self, df_layers, chunksize=2 ** 5, wdir=None):
         self._df_layers = df_layers
         self._chunksize = chunksize
         # In this whole class we could directly get the windows from the
@@ -89,19 +89,20 @@ class EOCubeAbstract():
 
         idx_layers = []
         if isinstance(band, str) and isinstance(date, str):
-            idx_layers = df[(df["date"] == date) &  (df["band"] == band)]["index"].values[0]
+            idx_layers = df[(df["date"] == date) & (df["band"] == band)]["index"].values[0]
         if isinstance(band, list) and isinstance(date, str):
             for b in band:
-                idx = df[(df["date"] == date) &  (df["band"] == b)]["index"].values[0]
+                idx = df[(df["date"] == date) & (df["band"] == b)]["index"].values[0]
                 idx_layers.append(idx)
         elif isinstance(band, str) and isinstance(date, list):
             for d in date:
-                idx = df[(df["band"] == band) &  (df["date"] == d)]["index"].values[0]
+                idx = df[(df["band"] == band) & (df["date"] == d)]["index"].values[0]
                 idx_layers.append(idx)
         return idx_layers
 
+
 class EOCube(EOCubeAbstract):
-    def __init__(self, df_layers, chunksize=2**5, wdir=None):
+    def __init__(self, df_layers, chunksize=2 ** 5, wdir=None):
         super().__init__(df_layers=df_layers, chunksize=chunksize, wdir=wdir)
 
     def get_chunk(self, ji):
@@ -111,8 +112,10 @@ class EOCube(EOCubeAbstract):
     def apply_and_write(self, fun, dst_paths, **kwargs):
         ji_process = []
         for ji in range(self.n_chunks):
-            dst_paths_ji_exist = [self.get_chunk_path_from_layer_path(
-                dst, ji, mkdir=False).exists() for dst in dst_paths]
+            dst_paths_ji_exist = [
+                self.get_chunk_path_from_layer_path(dst, ji, mkdir=False).exists()
+                for dst in dst_paths
+            ]
             if not all(dst_paths_ji_exist):
                 ji_process.append(ji)
         if len(ji_process) != self.n_chunks:
@@ -128,8 +131,7 @@ class EOCube(EOCubeAbstract):
     def create_vrt_from_chunks(self, dst_path):
         chunk_paths = []
         for ji in range(self.n_chunks):
-            pth = self.get_chunk_path_from_layer_path(dst_path, ji,
-                                                      mkdir=True).absolute()
+            pth = self.get_chunk_path_from_layer_path(dst_path, ji, mkdir=True).absolute()
             if not pth.exists():
                 raise FileNotFoundError(pth)
             else:
@@ -138,18 +140,18 @@ class EOCube(EOCubeAbstract):
 
 
 class EOCubeChunk(EOCubeAbstract):
-    def __init__(self, ji, df_layers, chunksize=2**5, wdir=None):
+    def __init__(self, ji, df_layers, chunksize=2 ** 5, wdir=None):
         super().__init__(df_layers=df_layers, chunksize=chunksize, wdir=wdir)
         self._ji = ji
-        self._data = None # set with self.read_data()
-        self._data_structure = None # can be ndarray, dataframe
+        self._data = None  # set with self.read_data()
+        self._data_structure = None  # can be ndarray, dataframe
         self._window = self._mrio.windows[self.ji]
         self._width = self._window.width
         self._height = self._window.height
         self._n_layers = self.df_layers.shape[0]
         self.result = None
         self._spatial_bounds = self._get_spatial_bounds()
-        
+
     @property
     def ji(self):
         return self._ji
@@ -168,23 +170,29 @@ class EOCubeChunk(EOCubeAbstract):
 
     @chunksize.setter
     def chunksize(self, value):
-        raise NotImplementedError("It is not allowed to set the EOCubeChunk chunksize (but of a EOCube object).")
+        raise NotImplementedError(
+            "It is not allowed to set the EOCubeChunk chunksize (but of a EOCube object)."
+        )
 
     def _get_spatial_bounds(self):
-        """Get the spatial bounds of the chunk.""" 
+        """Get the spatial bounds of the chunk."""
         # This should be a MultiRasterIO method
-        with rasterio.open(self._mrio._get_template_for_given_resolution(self._mrio.dst_res, "path")) as src_layer:
-            pass # later we need src_layer for src_layer.window_transform(win)
+        with rasterio.open(
+            self._mrio._get_template_for_given_resolution(self._mrio.dst_res, "path")
+        ) as src_layer:
+            pass  # later we need src_layer for src_layer.window_transform(win)
         win_transform = src_layer.window_transform(self._window)
-        bounds = rasterio.windows.bounds(window=self._window,
-                                         transform=win_transform,
-                                         height=0, width=0)
+        bounds = rasterio.windows.bounds(
+            window=self._window, transform=win_transform, height=0, width=0
+        )
         return bounds
 
     def read_data(self):
         self._data = self._mrio.get_arrays(self.ji)
         if self.data.shape[0] * self.data.shape[1] != self._width * self._height:
-            raise Exception(f"X/Y dimension size of extracted window (={'/'.join(self.data.shape)}) different from expected shape (={self._width}/{self._height}).")
+            raise Exception(
+                f"X/Y dimension size of extracted window (={'/'.join(self.data.shape)}) different from expected shape (={self._width}/{self._height})."
+            )
         self._update_data_structure()
         return self
 
@@ -220,41 +228,48 @@ class EOCubeChunk(EOCubeAbstract):
         data_ndarray = data.values.reshape(shape_ndarray)
         return data_ndarray
 
-    def write_dataframe(self, result, dst_paths, nodata=None, compress='lzw'):
+    def write_dataframe(self, result, dst_paths, nodata=None, compress="lzw"):
         """Write results (dataframe) to disc."""
         result = self._convert_to_ndarray(result)
         self.write_ndarray(result, dst_paths, nodata=nodata, compress=compress)
 
-    def write_ndarray(self, result, dst_paths, nodata=None, compress='lzw'):
+    def write_ndarray(self, result, dst_paths, nodata=None, compress="lzw"):
         """Write results (ndarray) to disc."""
 
         assert len(dst_paths) == result.shape[2]
         assert result.shape[0] == self._height
         assert result.shape[1] == self._width
         assert result.shape[2] == len(dst_paths)
-        with rasterio.open(self._mrio._get_template_for_given_resolution(self._mrio.dst_res, "path")) as src_layer:
-            pass # later we need src_layer for src_layer.window_transform(win)
+        with rasterio.open(
+            self._mrio._get_template_for_given_resolution(self._mrio.dst_res, "path")
+        ) as src_layer:
+            pass  # later we need src_layer for src_layer.window_transform(win)
         for i, pth in enumerate(dst_paths):
             dst_path_chunk = self.get_chunk_path_from_layer_path(pth, self.ji)
 
             result_layer_i = result[:, :, [i]]
             assert result_layer_i.shape[2] == 1
             kwargs = self._mrio._get_template_for_given_resolution(
-                res=self._mrio.dst_res, return_="meta").copy()
-            kwargs.update({"driver": "GTiff",
-                           "compress": compress,
-                           "nodata": nodata,
-                           "height": self._height,
-                           "width": self._width,
-                           "dtype": result_layer_i.dtype,
-                           "transform": src_layer.window_transform(self._window)})
+                res=self._mrio.dst_res, return_="meta"
+            ).copy()
+            kwargs.update(
+                {
+                    "driver": "GTiff",
+                    "compress": compress,
+                    "nodata": nodata,
+                    "height": self._height,
+                    "width": self._width,
+                    "dtype": result_layer_i.dtype,
+                    "transform": src_layer.window_transform(self._window),
+                }
+            )
             with rasterio.open(dst_path_chunk, "w", **kwargs) as dst:
                 dst.write(result_layer_i[:, :, 0], 1)
-    
+
     @staticmethod
     def robust_data_range(arr, robust=False, vmin=None, vmax=None):
         """Get a robust data range, i.e. 2nd and 98th percentile for vmin, vmax parameters."""
-        # from the seaborn code 
+        # from the seaborn code
         # https://github.com/mwaskom/seaborn/blob/3a3ec75befab52c02650c62772a90f8c23046038/seaborn/matrix.py#L201
 
         def _get_vmin_vmax(arr2d, vmin=None, vmax=None):
@@ -276,11 +291,16 @@ class EOCubeChunk(EOCubeAbstract):
             vmin, vmax = _get_vmin_vmax(arr, vmin=vmin, vmax=vmax)
         return vmin, vmax
 
-    def plot_raster(self,
-                    idx_layer,
-                    robust=False, vmin=None, vmax=None,
-                    spatial_bounds=False,
-                    figsize=None, ax=None):
+    def plot_raster(
+        self,
+        idx_layer,
+        robust=False,
+        vmin=None,
+        vmax=None,
+        spatial_bounds=False,
+        figsize=None,
+        ax=None,
+    ):
 
         import matplotlib.pyplot as plt
 
@@ -290,19 +310,22 @@ class EOCubeChunk(EOCubeAbstract):
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
-        vmin, vmax = self.robust_data_range(arr,
-                                            robust=robust,
-                                            vmin=vmin, vmax=vmax)
-        ax = ax.imshow(arr,
-                       extent=self.spatial_bounds if spatial_bounds else None,
-                       vmin=vmin, vmax=vmax)
+        vmin, vmax = self.robust_data_range(arr, robust=robust, vmin=vmin, vmax=vmax)
+        ax = ax.imshow(
+            arr, extent=self.spatial_bounds if spatial_bounds else None, vmin=vmin, vmax=vmax
+        )
         return ax
 
-    def plot_raster_rgb(self,
-                        idx_layers,
-                        robust=False, vmin=None, vmax=None,
-                        spatial_bounds=False,
-                        figsize=None, ax=None):
+    def plot_raster_rgb(
+        self,
+        idx_layers,
+        robust=False,
+        vmin=None,
+        vmax=None,
+        spatial_bounds=False,
+        figsize=None,
+        ax=None,
+    ):
 
         import matplotlib.pyplot as plt
 
@@ -320,26 +343,22 @@ class EOCubeChunk(EOCubeAbstract):
         for i in range(arr.shape[2]):
             arr_i = arr[:, :, i]
 
-            vmin_i, vmax_i = self.robust_data_range(arr_i, 
-                                                    robust=robust, 
-                                                    vmin=_select_vmxx(vmin, i),
-                                                    vmax=_select_vmxx(vmax, i))
+            vmin_i, vmax_i = self.robust_data_range(
+                arr_i, robust=robust, vmin=_select_vmxx(vmin, i), vmax=_select_vmxx(vmax, i)
+            )
             arr_i[arr_i < vmin_i] = vmin_i
             arr_i[arr_i > vmax_i] = vmax_i
             arr[:, :, i] = (arr_i - vmin_i) / (vmax_i - vmin_i)
 
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
-        ax = ax.imshow(arr, 
-                       extent=self.spatial_bounds if spatial_bounds else None)
+        ax = ax.imshow(arr, extent=self.spatial_bounds if spatial_bounds else None)
 
         return ax
 
-    
-
     @staticmethod
     def _reshape_3to2d(arr_3d):
-        new_shape = (arr_3d.shape[0] * arr_3d.shape[1], arr_3d.shape[2],)
+        new_shape = (arr_3d.shape[0] * arr_3d.shape[1], arr_3d.shape[2])
         return arr_3d.reshape(new_shape)
 
     @staticmethod
@@ -350,22 +369,27 @@ class EOCubeChunk(EOCubeAbstract):
 
 
 class EOCubeSceneCollectionAbstract(EOCubeAbstract):
-    def __init__(self,
-                 df_layers,
-                 chunksize,
-                 variables,
-                 qa,
-                 qa_valid,
-                 # timeless=None,
-                 wdir=None):
+    def __init__(
+        self,
+        df_layers,
+        chunksize,
+        variables,
+        qa,
+        qa_valid,
+        # timeless=None,
+        wdir=None,
+    ):
 
         # validation and formatting
-        n_per_sceneid = len(variables) + 1 # i.e. qa layer
+        n_per_sceneid = len(variables) + 1  # i.e. qa layer
         scenes_complete = df_layers.groupby("sceneid").apply(
-            lambda x: x["band"].isin(variables + [qa]).sum() == n_per_sceneid)
+            lambda x: x["band"].isin(variables + [qa]).sum() == n_per_sceneid
+        )
         if not all(scenes_complete):
             scenes_incomplete = scenes_complete.index[~scenes_complete].values
-            raise ValueError(f"Variable or qa layers missing in the following scenes: {scenes_incomplete}")
+            raise ValueError(
+                f"Variable or qa layers missing in the following scenes: {scenes_incomplete}"
+            )
         df_layers = df_layers.sort_values(["date", "sceneid", "band"])
 
         EOCubeAbstract.__init__(self, df_layers=df_layers, chunksize=chunksize, wdir=wdir)
@@ -386,37 +410,33 @@ class EOCubeSceneCollectionAbstract(EOCubeAbstract):
     def qa_valid(self):
         return self._qa_valid
 
+
 """     @property
     def timeless(self):
         return self._timeless
  """
 
-class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
 
+class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
     def get_chunk(self, ji):
         """Get a EOCubeChunk"""
-        return EOCubeSceneCollectionChunk(ji=ji,
-                                          df_layers=self.df_layers,
-                                          chunksize=self.chunksize,
-                                          variables=self.variables,
-                                          qa=self.qa,
-                                          qa_valid=self.qa_valid,
-                                          wdir=self.wdir)
+        return EOCubeSceneCollectionChunk(
+            ji=ji,
+            df_layers=self.df_layers,
+            chunksize=self.chunksize,
+            variables=self.variables,
+            qa=self.qa,
+            qa_valid=self.qa_valid,
+            wdir=self.wdir,
+        )
 
-    def apply_and_write_by_variable(self,
-                                    fun,
-                                    dst_paths,
-                                    dtypes,
-                                    compress,
-                                    nodata,
-                                    **kwargs):
-
+    def apply_and_write_by_variable(self, fun, dst_paths, dtypes, compress, nodata, **kwargs):
         def check_variable_specific_args(arg, variables):
             if isinstance(arg, dict):
                 if not set(arg.keys()) == set(self.variables):
                     raise ValueError("'dtypes'-, 'nodata'-dicts keys must match (self.)variables.")
                 else:
-                    return arg # TODO: better validate the args before
+                    return arg  # TODO: better validate the args before
             else:
                 # TODO: validate the args before
                 return {var: arg for var in variables}
@@ -430,8 +450,10 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
             ji_process[var] = []
             counter = 0
             for ji in range(self.n_chunks):
-                dst_paths_ji_exist = [self.get_chunk_path_from_layer_path(
-                    dst, ji, mkdir=False).exists() for dst in dst_paths[var]]
+                dst_paths_ji_exist = [
+                    self.get_chunk_path_from_layer_path(dst, ji, mkdir=False).exists()
+                    for dst in dst_paths[var]
+                ]
                 if all(dst_paths_ji_exist):
                     counter += 1
                 else:
@@ -452,74 +474,80 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
             for var in self.variables:
                 if ji in ji_process[var]:
                     results[var] = fun(eoc_chunk.data[var], **kwargs)
-                    results[var] = cleanup_df_values_for_given_dtype(results[var],
-                                                                     dtype=dtypes[var],
-                                                                     lower_as=None,
-                                                                     higher_as=None,
-                                                                     nan_as=None)
-                    eoc_chunk.write_dataframe(results[var],
-                                              dst_paths[var],
-                                              nodata[var],
-                                              compress[var])
+                    results[var] = cleanup_df_values_for_given_dtype(
+                        results[var], dtype=dtypes[var], lower_as=None, higher_as=None, nan_as=None
+                    )
+                    eoc_chunk.write_dataframe(
+                        results[var], dst_paths[var], nodata[var], compress[var]
+                    )
         for var in self.variables:
             for pth in dst_paths[var]:
                 if not Path(pth).exists():
                     self.create_vrt_from_chunks(pth)
 
-    def create_virtual_time_series(self,
-                                   idx_virtual,
-                                   dst_pattern, #"./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
-                                   dtypes,
-                                   compress="lzw",
-                                   nodata=None,
-                                   num_workers=1):
+    def create_virtual_time_series(
+        self,
+        idx_virtual,
+        dst_pattern,  # "./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
+        dtypes,
+        compress="lzw",
+        nodata=None,
+        num_workers=1,
+    ):
         dst_paths = {}
         for var in self.variables:
             dst_paths[var] = []
             for date in idx_virtual:
-                dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
-        assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+                dst_paths[var].append(
+                    dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")})
+                )
+        assert (len(idx_virtual) * len(self.variables)) == sum(
+            [len(dst_paths[var]) for var in self.variables]
+        )
 
-        self.apply_and_write_by_variable(# mask=True,
-                                         fun=create_virtual_time_series,
-                                         dst_paths=dst_paths,
-                                         dtypes=dtypes,
-                                         compress=compress,
-                                         nodata=nodata,
-                                         idx_virtual=idx_virtual,
-                                         num_workers=num_workers,
-                                         verbosity=0)
+        self.apply_and_write_by_variable(  # mask=True,
+            fun=create_virtual_time_series,
+            dst_paths=dst_paths,
+            dtypes=dtypes,
+            compress=compress,
+            nodata=nodata,
+            idx_virtual=idx_virtual,
+            num_workers=num_workers,
+            verbosity=0,
+        )
 
 
 class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
-    def __init__(self,
-                 ji,
-                 df_layers,
-                 chunksize,
-                 variables,
-                 qa,
-                 qa_valid,
-                 # timeless=None,
-                 wdir=None):
-        EOCubeSceneCollectionAbstract.__init__(self,
-                                               df_layers=df_layers,
-                                               chunksize=chunksize,
-                                               variables=variables,
-                                               qa=qa,
-                                               qa_valid=qa_valid,
-                                               wdir=wdir)
-        EOCubeChunk.__init__(self,
-                             ji=ji,
-                             df_layers=df_layers,
-                             chunksize=chunksize,
-                             wdir=wdir)
+    def __init__(
+        self,
+        ji,
+        df_layers,
+        chunksize,
+        variables,
+        qa,
+        qa_valid,
+        # timeless=None,
+        wdir=None,
+    ):
+        EOCubeSceneCollectionAbstract.__init__(
+            self,
+            df_layers=df_layers,
+            chunksize=chunksize,
+            variables=variables,
+            qa=qa,
+            qa_valid=qa_valid,
+            wdir=wdir,
+        )
+        EOCubeChunk.__init__(self, ji=ji, df_layers=df_layers, chunksize=chunksize, wdir=wdir)
 
     def read_data_by_variable(self, mask=True):
         """Reads and masks (if desired) the data and converts it in one dataframe per variable."""
+
         def print_elapsed_time(start, last_stopped, prefix):
             # print(f"{prefix} - Elapsed time [s] since start / last stopped: \
             #     {(int(time.time() - start_time))} / {(int(time.time() - last_stopped))}")
             return time.time()
+
         start_time = time.time()
         last_stopped = time.time()
         last_stopped = print_elapsed_time(start_time, last_stopped, "Starting chunk function")
@@ -532,7 +560,6 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
         # 2.
         sc_chunk = self.convert_data_to_dataframe()
         last_stopped = print_elapsed_time(start_time, last_stopped, "Data converted to df")
-
 
         # 3.B.
         if mask:
@@ -563,7 +590,6 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
 
 
 def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
-
     def _create_virtual_time_series_core(df, idx_virtual, verbosity=0):
 
         if verbosity:
@@ -578,7 +604,9 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
         # idx_virtual = df.resample(rule).asfreq().index
         if not df.index.is_unique:
             if verbosity:
-                print(f"Aggregating (max) data with > observations per day: {df.index[df.index.duplicated()]}")
+                print(
+                    f"Aggregating (max) data with > observations per day: {df.index[df.index.duplicated()]}"
+                )
             df = df.groupby(level=0).max()
             assert df.index.is_unique
 
@@ -592,7 +620,7 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
         # extend the time series data such that it contains all existing and virtual time series points
         df = df.reindex(index=idx_virtual_and_data)
         # interpolate between dates and forward/backward fill edges with closest values
-        df = df.interpolate(method='time')
+        df = df.interpolate(method="time")
         df = df.bfill()
         df = df.ffill()
         df = df.loc[idx_virtual]
@@ -605,13 +633,12 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
 
     if (num_workers > 1) or (num_workers == -1):
         import dask.dataframe as dd
+
         df_var = dd.from_pandas(df_var, npartitions=num_workers)
-        df_result = df_var.map_partitions(_create_virtual_time_series_core,
-                                          idx_virtual=idx_virtual,
-                                          verbosity=verbosity)
-        df_result = df_result.compute(scheduler='processes', num_workers=num_workers)
+        df_result = df_var.map_partitions(
+            _create_virtual_time_series_core, idx_virtual=idx_virtual, verbosity=verbosity
+        )
+        df_result = df_result.compute(scheduler="processes", num_workers=num_workers)
     else:
-        df_result = _create_virtual_time_series_core(df_var,
-                                                     idx_virtual,
-                                                     verbosity=verbosity)
+        df_result = _create_virtual_time_series_core(df_var, idx_virtual, verbosity=verbosity)
     return df_result

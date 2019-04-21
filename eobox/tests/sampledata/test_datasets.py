@@ -16,6 +16,7 @@ def test_dataset_s2l1c():
     assert all([os.path.exists(path) for path in ds["raster_files"]])
     assert os.path.exists(ds["vector_file"])
 
+
 def test_dataset_lsts():
     ds = get_dataset("lsts")
     assert isinstance(ds, dict)
