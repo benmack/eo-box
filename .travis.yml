@@ -28,6 +28,9 @@ install:
   
   - pip install -r requirements-dev.txt
 
+  # Install pacakge
+  - pip install . --no-deps
+
 script:
   - pylint sampledata/*.py
   - pylint raster/*.py
