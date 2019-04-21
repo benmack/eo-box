@@ -1,5 +1,0 @@
-gdal
-numpy
-pandas
-rasterio
-tqdm
