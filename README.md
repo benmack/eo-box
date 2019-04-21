@@ -5,16 +5,17 @@
 
 **eobox** is a Python package with a small collection of tools for working with Remote Sensing / Earth Observation data. 
 
-## Package Overview
 
-The structure of this project has been created following the [eo-learn project of Sinergise](https://github.com/sentinel-hub/eo-learn).
-For a package containing diverse functionalities as it is envisaged for this package as well, it is convincing to subdivide the pacakge into ["several subpackages according to different functionalities and external package dependencies"](https://github.com/sentinel-hub/eo-learn).
+## Package Overview
 
 So far, the following subpackages are available:
 
-- **`eo-box-sampledata`** contains small sample data that can be used for playing around and testing.
-- **`eo-box-raster`** contains raster processing tools for  
+* **eobox.sampledata** contains small sample data that can be used for playing around and testing.
+
+* **eobox.raster** contains raster processing tools for
+
     * extracting raster values at given (by vector data) locations,
+
     * window- / chunk-wise processing of multiple single layer raster files as a stack.
 
 
@@ -24,13 +25,6 @@ The package requires Python 3. It can be installed with the following command:
 
 ```bash
 pip install eo-box
-```
-
-It is also possible to install the subpackage separately:
-
-```bash
-pip install eo-box-sampledata
-pip install eo-box-raster
 ```
 
 ## Documentation

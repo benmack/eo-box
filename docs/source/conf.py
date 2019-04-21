@@ -20,8 +20,7 @@ prj_dir = os.path.dirname(
         os.path.dirname(
             os.path.abspath(__file__))))
 
-sys.path.append(os.path.join(prj_dir, "raster"))
-sys.path.append(os.path.join(prj_dir, "sampledata"))
+sys.path.append(os.path.join(prj_dir))
 
 # -- Project information -----------------------------------------------------
 
@@ -213,4 +212,5 @@ intersphinx_mapping = {'https://docs.python.org/3.6/': None}
 # copy examples
 shutil.rmtree('./examples', ignore_errors=True)
 
-shutil.copytree('../../examples', './examples')
+shutil.copytree('../../examples', './examples', 
+                ignore=shutil.ignore_patterns('*xxx_uncontrolled*', '*.ipynb_checkpoints*'))

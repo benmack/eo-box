@@ -1,0 +1,6 @@
+include LICENSE
+include README.rst
+include requirements.txt
+recursive-include eobox/sampledata *.jp2
+recursive-include eobox/sampledata *.gpkg
+recursive-include eobox/sampledata *.tif
