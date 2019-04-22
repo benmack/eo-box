@@ -16,6 +16,7 @@ install:
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
+
   # Useful for debugging any issues with conda
   - conda info -a
 
@@ -25,13 +26,10 @@ install:
   # Add dependencies
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION rasterio gdal
   - source activate test-environment
-  
-  - pip install -r requirements-dev.txt
+  - pip3 install -r requirements-dev.txt
+
+  # Install package
+  - pip3 install .
 
 script:
-  - pylint sampledata/*.py
-  - pylint raster/*.py
-  - radon cc sampledata/*.py -a -nb
-  - radon cc raster/*.py -a -nb
-  - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then pytest --ignore raster/eobox/tests; fi'
-  - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then pytest ; fi'
+  - pytest
