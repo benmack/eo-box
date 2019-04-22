@@ -1,12 +1,13 @@
 import os
 from setuptools import setup, find_packages
+import subprocess
 
 
 def get_long_description():
     this_directory = os.path.abspath(os.path.dirname(__file__))
 
-    with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as readme:
-        long_description = readme.read()
+    with open(os.path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+        long_description = f.read()
 
     return long_description
 

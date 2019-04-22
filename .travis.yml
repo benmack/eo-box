@@ -28,13 +28,10 @@ install:
   
   - pip install -r requirements-dev.txt
 
-  # Install pacakge
-  - pip install .
-
 script:
-  - pylint eobox/sampledata/*.py
-  - pylint eobox/raster/*.py
-  - radon cc eobox/sampledata/*.py -a -nb
-  - radon cc eobox/raster/*.py -a -nb
+  - pylint sampledata/*.py
+  - pylint raster/*.py
+  - radon cc sampledata/*.py -a -nb
+  - radon cc raster/*.py -a -nb
   - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then pytest --ignore raster/eobox/tests; fi'
   - 'if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then pytest ; fi'

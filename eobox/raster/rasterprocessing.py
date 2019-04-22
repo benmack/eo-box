@@ -5,15 +5,11 @@ from rasterio.warp import reproject
 from rasterio.enums import Resampling
 from rasterio import transform
 
-
-class MultiRasterIO:
-    def __init__(
-        self,
-        layer_files: list,
-        dst_res: float = None,
-        downsampler: str = "average",
-        upsampler: str = "nearest",
-    ):
+class MultiRasterIO():
+    def __init__(self, layer_files: list,
+                 dst_res: float = None,
+                 downsampler: str = 'average',
+                 upsampler: str = 'nearest'):
         """Read, process and write multiple single layer raster files.
 
         Arguments:
@@ -54,8 +50,8 @@ class MultiRasterIO:
 
     # def windows(self, windows, resolution): # setter and getter ?
     #     raise NotImplementedError()
-    # ...
-    # self.windows = ...
+        # ...
+        # self.windows = ...
 
     def _get_dst_resolution(self, dst_res=None):
         """Get default resolution, i.e. the highest resolution or smallest cell size."""
@@ -124,12 +120,11 @@ class MultiRasterIO:
         """
 
         import pandas as pd
-
         if self.windows is None:
             raise Exception("You need to call the block_windows or windows before.")
         df_wins = []
         for row, col, win in zip(self.windows_row, self.windows_col, self.windows):
-            df_wins.append(pd.DataFrame({"row": [row], "col": [col], "Window": [win]}))
+            df_wins.append(pd.DataFrame({"row":[row], "col":[col], "Window":[win]}))
         df_wins = pd.concat(df_wins).set_index(["row", "col"])
         df_wins["window_index"] = range(df_wins.shape[0])
         df_wins = df_wins.sort_index()
@@ -145,11 +140,9 @@ class MultiRasterIO:
         transform_src = self._layer_meta[self._res_indices[self._windows_res][0]]["transform"]
         for res in self._res_indices:
             transform_dst = self._layer_meta[self._res_indices[res][0]]["transform"]
-            ji_windows[res] = window_from_window(
-                window_src=self.windows[ij_win],
-                transform_src=transform_src,
-                transform_dst=transform_dst,
-            )
+            ji_windows[res] = window_from_window(window_src=self.windows[ij_win],
+                                                 transform_src=transform_src,
+                                                 transform_dst=transform_dst)
         return ji_windows
 
     def get_arrays(self, ji_win):
@@ -191,28 +184,21 @@ class MultiRasterIO:
             else:
                 arrays_dst.append(array.copy())
                 continue
-            reproject(
-                array,
-                arr_dst,  # arr_dst[0, :, :, i],
-                src_transform=self._layer_meta[i]["transform"],
-                dst_transform=aff_dst,
-                src_crs=self._layer_meta[0]["crs"],
-                dst_crs=self._layer_meta[0]["crs"],
-                resampling=resampling,
-            )
+            reproject(array, arr_dst,  # arr_dst[0, :, :, i],
+                      src_transform=self._layer_meta[i]["transform"],
+                      dst_transform=aff_dst,
+                      src_crs=self._layer_meta[0]["crs"],
+                      dst_crs=self._layer_meta[0]["crs"],
+                      resampling=resampling)
             arrays_dst.append(arr_dst.copy())
-        arrays_dst = np.stack(
-            arrays_dst, axis=2
-        )  # n_images x n x m x 10 would be the synergise format
+        arrays_dst = np.stack(arrays_dst, axis=2) # n_images x n x m x 10 would be the synergise format
         return arrays_dst
 
     def apply_and_save(self, dst_files, func, **kwargs):
 
         result_0 = self._process_window(0, func, **kwargs)
         if len(dst_files) != len(result_0):
-            raise ValueError(
-                "The number of file paths in 'dst' need to match the number of output layers."
-            )
+            raise ValueError("The number of file paths in 'dst' need to match the number of output layers.")
         meta = self._get_template_for_given_resolution(res=self.dst_res, return_="meta")
 
         dtypes = [arr.dtype for arr in result_0]
@@ -271,9 +257,7 @@ class MultiRasterIO:
 
     def get_window_from_xy(self, xy):
         """Get the window index given a coordinate (raster CRS)."""
-        a_transform = self._get_template_for_given_resolution(res=self.dst_res, return_="meta")[
-            "transform"
-        ]
+        a_transform = self._get_template_for_given_resolution(res=self.dst_res, return_="meta")["transform"]
         row, col = transform.rowcol(a_transform, xy[0], xy[1])
         ij_containing_xy = None
         for ji, win in enumerate(self.windows):
@@ -286,24 +270,17 @@ class MultiRasterIO:
             raise ValueError("The given 'xy' value is not contained in any window.")
         return ij_containing_xy
 
-
 def window_from_window(window_src, transform_src, transform_dst):
     # extend that transform can be a filename, rasterio dataset, meta (dict), or Affine
-    spatial_bounds = rasterio.windows.bounds(
-        window=window_src, transform=transform_src, height=0, width=0
-    )  # defaults
-    window_dst = rasterio.windows.from_bounds(
-        spatial_bounds[0],
-        spatial_bounds[1],
-        spatial_bounds[2],
-        spatial_bounds[3],
-        transform=transform_dst,
-        height=None,
-        width=None,
-        precision=None,
-    )  # defaults
+    spatial_bounds = rasterio.windows.bounds(window=window_src, transform=transform_src,
+                                             height=0, width=0)  # defaults
+    window_dst = rasterio.windows.from_bounds(spatial_bounds[0],
+                                              spatial_bounds[1],
+                                              spatial_bounds[2],
+                                              spatial_bounds[3],
+                                              transform=transform_dst,
+                                              height=None, width=None, precision=None)  # defaults
     return window_dst
-
 
 def windows_from_blocksize(blocksize_xy, width, height):
     """Create rasterio.windows.Window instances with given size which fully cover a raster.
@@ -343,7 +320,7 @@ def windows_from_blocksize(blocksize_xy, width, height):
     # create the windows
     # if necessary, reduce the width and/or height of the border windows
     blocksize_wins = []
-    for ridx, roff, cidx, coff in zip(row, row_off, col, col_off):
+    for ridx, roff, cidx, coff, in zip(row, row_off, col, col_off):
         if coff + blockxsize > width:
             bxsize = width - coff
         else:
