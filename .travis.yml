@@ -26,10 +26,11 @@ install:
   # Add dependencies
   - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION rasterio gdal
   - source activate test-environment
-  - pip3 install -r requirements-dev.txt
+  - conda install --yes --file requirements.txt
+  - conda install --yes --file requirements-dev.txt
 
   # Install package
-  - pip3 install .
+  - pip3 install --no-deps .
 
 script:
   - pytest
