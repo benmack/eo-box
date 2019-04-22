@@ -33,4 +33,4 @@ install:
   - pip3 install --no-deps .
 
 script:
-  - pytest
+  - python -m pytest
