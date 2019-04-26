@@ -3,6 +3,7 @@
 
 # eo-box
 
+
 **eobox** is a Python package with a small collection of tools for working with Remote Sensing / Earth Observation data. 
 
 
@@ -18,13 +19,19 @@ So far, the following subpackages are available:
 
     * window- / chunk-wise processing of multiple single layer raster files as a stack.
 
+* **eobox.vector** contains vector processing tools for
+
+    * clean convertion of polygons to lines and 
+
+    * distance-to-polygon border calculation.
+
 
 ## Installation
 
 The package requires Python 3. It can be installed with the following command:
 
 ```bash
-pip install eo-box
+pip3 install eobox
 ```
 
 ## Documentation
