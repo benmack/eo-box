@@ -1,4 +1,4 @@
-__version__ = '0.3.0'
+__version__ = "0.3.0"
 
 from . import sampledata
 from .sampledata import get_dataset
