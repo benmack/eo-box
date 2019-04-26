@@ -13,8 +13,10 @@ def test_dataset_s2l1c():
     assert len(ds["raster_times"]) == 13
     assert "20170216T102101" in ds["raster_times"]
     assert isinstance(ds["vector_file"], str)
+    assert isinstance(ds["vector_file_osm"], str)
     assert all([os.path.exists(path) for path in ds["raster_files"]])
     assert os.path.exists(ds["vector_file"])
+    assert os.path.exists(ds["vector_file_osm"])
 
 def test_dataset_lsts():
     ds = get_dataset("lsts")

@@ -1,4 +1,5 @@
-# eobox.raster subpackage
+"""
+eobox.raster subpackage
 
 Subpackage which mainly builds upon rasterio (and thus gdal) functionality.
 It provides tools for 
@@ -8,3 +9,10 @@ It provides tools for
 
 
 For more information on the package content, visit [readthedocs](https://eo-box.readthedocs.raster/en/latest/eobox.raster.html).
+
+"""
+
+from .extraction import extract
+from .extraction import load_extracted
+from .rasterprocessing import MultiRasterIO
+from .rasterprocessing import windows_from_blocksize

@@ -1,7 +1,7 @@
-eobox.raster.extraction
+eobox.vector.conversion
 =======================
 
-.. automodule:: eobox.raster.extraction
+.. automodule:: eobox.vector.conversion
     :members:
     :undoc-members:
     :show-inheritance:

@@ -1,5 +1,5 @@
 eobox.raster
-===================
+============
 
 .. automodule:: eobox.raster
     :members:

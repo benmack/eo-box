@@ -32,7 +32,8 @@ def get_dataset(dataset="s2l1c"):
         dset = {"raster_files": files,
                 "raster_bands": [ele[1] for ele in basename_splitted],
                 "raster_times": [ele[0] for ele in basename_splitted],
-                "vector_file": os.path.join(DIR_DATA, "s2l1c", "s2l1c_ref.gpkg")}
+                "vector_file": os.path.join(DIR_DATA, "s2l1c", "s2l1c_ref.gpkg"),
+                "vector_file_osm": os.path.join(DIR_DATA, "s2l1c", "gis_osm_landuse-water_a_free_1_area-10000-to-500000.gpkg")}
 
     elif dataset == "lsts":
         search_string = os.path.join(DIR_DATA, dataset, "**", "*.tif")

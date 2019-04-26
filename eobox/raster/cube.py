@@ -5,8 +5,8 @@ import rasterio
 import time
 from tqdm import tqdm
 
-from eobox.raster import MultiRasterIO
-from eobox.raster.gdalutils import buildvrt
+from .rasterprocessing import MultiRasterIO
+from .gdalutils import buildvrt
 
 from .utils import dtype_checker_df
 from .utils import cleanup_df_values_for_given_dtype

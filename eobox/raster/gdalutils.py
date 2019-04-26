@@ -1,6 +1,21 @@
 from os.path import relpath
-from osgeo import gdal, gdalconst
+from osgeo import gdal, gdalconst, ogr
 from pathlib import Path
+import warnings
+
+# find the path to the gdal_proximity.py - I found it in these places so far...
+try:
+    PROXIMITY_PATH = str(list(Path(gdal.__file__).parent.rglob("*proximity.py"))[0])
+except:
+    PROXIMITY_PATH = None
+try:
+    PROXIMITY_PATH = str(list(Path(gdal.__file__).parent.parent.rglob("GDAL*/scripts/*proximity.py"))[0])
+except:
+    PROXIMITY_PATH = None
+
+if PROXIMITY_PATH is None:
+    warnings.warn("Could not find the path of gdal_proximity.py: Searched in " + \
+                    f"{Path(gdal.__file__).parent}, {str(Path(gdal.__file__).parent.parent)+'/GDAL*/scripts'}.")
 
 
 def buildvrt(input_file_list, output_file,
@@ -148,3 +163,56 @@ def reproject_on_template_raster(src_file, dst_file, template_file, resampling="
 
     del dst # Flush
     return 0
+
+def rasterize(src_vector: str,
+              burn_attribute: str,
+              src_raster_template: str,
+              dst_rasterized: str,
+              gdal_dtype: int = 4):
+    """Rasterize the values of a spatial vector file.
+
+    Arguments:
+        src_vector {str}} -- A OGR vector file (e.g. GeoPackage, ESRI Shapefile) path containing the
+            data to be rasterized.
+        burn_attribute {str} -- The attribute of the vector data to be burned in the raster.
+        src_raster_template {str} -- Path to a GDAL raster file to be used as template for the
+            rasterized data.
+        dst_rasterized {str} -- Path of the destination file.
+        gdal_dtype {int} -- Numeric GDAL data type, defaults to 4 which is UInt32.
+            See https://github.com/mapbox/rasterio/blob/master/rasterio/dtypes.py for useful look-up
+            tables.
+    Returns:
+        None
+    """
+
+    data = gdal.Open(str(src_raster_template),  # str for the case that a Path instance arrives here
+                     gdalconst.GA_ReadOnly)
+    geo_transform = data.GetGeoTransform()
+    #source_layer = data.GetLayer()
+    # x_max = x_min + geo_transform[1] * data.RasterXSize
+    # y_min = y_max + geo_transform[5] * data.RasterYSize
+    x_res = data.RasterXSize
+    y_res = data.RasterYSize
+    mb_v = ogr.Open(src_vector)
+    mb_l = mb_v.GetLayer()
+    target_ds = gdal.GetDriverByName('GTiff').Create(dst_rasterized,
+                                                     x_res, y_res, 1,
+                                                     gdal_dtype)  # gdal.GDT_Byte
+    # import osr
+    target_ds.SetGeoTransform((geo_transform[0],  # x_min
+                               geo_transform[1],  # pixel_width
+                               0,
+                               geo_transform[3],  # y_max
+                               0,
+                               geo_transform[5]  # pixel_height
+                               ))
+    prj = data.GetProjection()
+    # srs = osr.SpatialReference(wkt=prj)  # Where was this needed?
+    target_ds.SetProjection(prj)
+    band = target_ds.GetRasterBand(1)
+    # NoData_value = 0
+    # band.SetNoDataValue(NoData_value)
+    band.FlushCache()
+    gdal.RasterizeLayer(target_ds, [1], mb_l, options=[f"ATTRIBUTE={burn_attribute}"])
+
+    target_ds = None

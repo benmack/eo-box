@@ -5,13 +5,11 @@ Module for extracting values of raster sampledata at location given by a vector 
 import os
 from pathlib import Path
 import numpy as np
-from osgeo import gdal
-from osgeo import ogr
-from osgeo import gdalconst
 import pandas as pd
 import rasterio
 from tqdm import tqdm
 
+from ..raster.gdalutils import rasterize
 
 def extract(src_vector: str,
             burn_attribute: str,
@@ -195,56 +193,3 @@ def load_extracted(src_dir: str,
         if index is not None:
             df_data.columns = index.index[index]
     return df_data
-
-def rasterize(src_vector: str,
-              burn_attribute: str,
-              src_raster_template: str,
-              dst_rasterized: str,
-              gdal_dtype: int = 4):
-    """Rasterize the values of a spatial vector file.
-
-    Arguments:
-        src_vector {str}} -- A OGR vector file (e.g. GeoPackage, ESRI Shapefile) path containing the
-            data to be rasterized.
-        burn_attribute {str} -- The attribute of the vector data to be burned in the raster.
-        src_raster_template {str} -- Path to a GDAL raster file to be used as template for the
-            rasterized data.
-        dst_rasterized {str} -- Path of the destination file.
-        gdal_dtype {int} -- Numeric GDAL data type, defaults to 4 which is UInt32.
-            See https://github.com/mapbox/rasterio/blob/master/rasterio/dtypes.py for useful look-up
-            tables.
-    Returns:
-        None
-    """
-
-    data = gdal.Open(str(src_raster_template),  # str for the case that a Path instance arrives here
-                     gdalconst.GA_ReadOnly)
-    geo_transform = data.GetGeoTransform()
-    #source_layer = data.GetLayer()
-    # x_max = x_min + geo_transform[1] * data.RasterXSize
-    # y_min = y_max + geo_transform[5] * data.RasterYSize
-    x_res = data.RasterXSize
-    y_res = data.RasterYSize
-    mb_v = ogr.Open(src_vector)
-    mb_l = mb_v.GetLayer()
-    target_ds = gdal.GetDriverByName('GTiff').Create(dst_rasterized,
-                                                     x_res, y_res, 1,
-                                                     gdal_dtype)  # gdal.GDT_Byte
-    # import osr
-    target_ds.SetGeoTransform((geo_transform[0],  # x_min
-                               geo_transform[1],  # pixel_width
-                               0,
-                               geo_transform[3],  # y_max
-                               0,
-                               geo_transform[5]  # pixel_height
-                               ))
-    prj = data.GetProjection()
-    # srs = osr.SpatialReference(wkt=prj)  # Where was this needed?
-    target_ds.SetProjection(prj)
-    band = target_ds.GetRasterBand(1)
-    # NoData_value = 0
-    # band.SetNoDataValue(NoData_value)
-    band.FlushCache()
-    gdal.RasterizeLayer(target_ds, [1], mb_l, options=[f"ATTRIBUTE={burn_attribute}"])
-
-    target_ds = None

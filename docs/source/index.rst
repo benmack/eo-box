@@ -6,20 +6,27 @@
 eo-box
 ======
 
-**eobox** is a Python package with a small collection of tools for working with Remote Sensing / Earth Observation data.
+**eobox** is a Python package with a small collection of tools for working with Remote Sensing / Earth Observation data. 
+
 
 Package Overview
 ----------------
 
-The structure of this project has been created following the `eo-learn project of Sinergise <https://github.com/sentinel-hub/eo-learn>`_.
-For a package containing diverse functionalities as it is envisaged for this package as well, it is convincing to subdivide the package into ["several subpackages according to different functionalities and external package dependencies (https://github.com/sentinel-hub/eo-learn).
-
 So far, the following subpackages are available:
 
-* **eo-box-sampledata** contains small sample data that can be used for playing around and testing.
-* **eo-learn-raster** contains raster processing tools for
+* **eobox.sampledata** contains small sample data that can be used for playing around and testing.
+
+* **eobox.raster** contains raster processing tools for
+
     * extracting raster values at given (by vector data) locations,
+
     * window- / chunk-wise processing of multiple single layer raster files as a stack.
+
+* **eobox.vector** contains vector processing tools for
+
+    * clean convertion of polygons to lines and 
+
+    * distance-to-polygon border calculation.
 
 .. toctree::
    :maxdepth: 1
@@ -33,6 +40,7 @@ So far, the following subpackages are available:
 
    examples_sampledata
    examples_raster
+   examples_vector
 
 .. toctree::
    :maxdepth: 2
