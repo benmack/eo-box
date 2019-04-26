@@ -22,6 +22,12 @@ So far, the following subpackages are available:
 
     * window- / chunk-wise processing of multiple single layer raster files as a stack.
 
+* **eobox.vector** contains vector processing tools for
+
+    * clean convertion of polygons to lines and 
+
+    * distance-to-polygon border calculation.
+
 .. toctree::
    :maxdepth: 1
    :caption: Getting Started
@@ -34,6 +40,7 @@ So far, the following subpackages are available:
 
    examples_sampledata
    examples_raster
+   examples_vector
 
 .. toctree::
    :maxdepth: 2

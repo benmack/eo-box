@@ -1,5 +1,5 @@
 eobox.raster.rasterprocessing
-====================================
+=============================
 
 .. automodule:: eobox.raster.rasterprocessing
     :members:
