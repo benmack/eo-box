@@ -76,12 +76,17 @@ class EOCubeAbstract():
 
         * several band and of one date (date given as strings, band as list of strings)
 
-        Arguments:
-            band {str or list} -- Band(s) for which to derive the iloc index.
-            date {str or list} -- Date(s) for which to derive the iloc index.
-
-        Returns:
-            int or list -- Integer (if band and date are str) or list of iloc indices.
+        Parameters
+        ----------
+        band : str or list
+            Band(s) for which to derive the iloc index.
+        date : str or list
+            Date(s) for which to derive the iloc index.
+        
+        Returns
+        -------
+        int or list 
+            Integer (if band and date are str) or list of iloc indices.
         """
 
         df = self.df_layers.copy()
@@ -358,7 +363,43 @@ class EOCubeSceneCollectionAbstract(EOCubeAbstract):
                  qa_valid,
                  # timeless=None,
                  wdir=None):
+        """Handling scene collections, i.e. a set of scenes each with the same layers.
 
+        The class enables to perform chunkwise processing over a set of scenes having
+        the same variables / bands.
+        Therefore the ``df_layers`` dataframe requires information to be stored in the following columns:
+
+        * *sceneid* (unique identifier of the scene),
+        
+        * *date* (the aquisition date of the scene as datetime type),
+        
+        * *band* (the layers / bands that exist for all scenes),
+        
+        * *uname* (unique identifier for all layers, i.e. scene + variable/qu-layer),
+        
+        * *path* (the path where the raster for that layer is located).
+
+        Parameters
+        ----------
+        df_layers : dataframe
+            A dataframe, see description above. 
+        chunksize : int
+            Size of the spatial window used as processing unit.
+        variables : list of str
+            Those values in ``df_layers['band']`` that are treated as variables.
+        qa : str
+            The value in ``df_layers['band']`` which is treated as quality assessment layer.
+        qa_valid : list of int
+            The values in the qualitiy assessment layer that identify pixels
+            to be considered as valid in the variable rasters., by default None
+        wdir : str, optional
+            Working directory
+            
+        Raises
+        ------
+        ValueError
+            [description]
+        """
         # validation and formatting
         n_per_sceneid = len(variables) + 1 # i.e. qa layer
         scenes_complete = df_layers.groupby("sceneid").apply(
@@ -394,7 +435,7 @@ class EOCubeSceneCollectionAbstract(EOCubeAbstract):
 class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
 
     def get_chunk(self, ji):
-        """Get a EOCubeChunk"""
+        """Get a EOCubeSceneCollectionChunk"""
         return EOCubeSceneCollectionChunk(ji=ji,
                                           df_layers=self.df_layers,
                                           chunksize=self.chunksize,
@@ -480,8 +521,7 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                 dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
         assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
 
-        self.apply_and_write_by_variable(# mask=True,
-                                         fun=create_virtual_time_series,
+        self.apply_and_write_by_variable(fun=create_virtual_time_series,
                                          dst_paths=dst_paths,
                                          dtypes=dtypes,
                                          compress=compress,
