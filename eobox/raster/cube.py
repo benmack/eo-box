@@ -530,6 +530,37 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                                          num_workers=num_workers,
                                          verbosity=0)
 
+    def create_statistical_metrics(self,
+                                   percentiles,
+                                   iqr,
+                                   dst_pattern, #"./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
+                                   dtypes,
+                                   compress="lzw",
+                                   nodata=None,
+                                   num_workers=1):
+
+        metrics = ['mean', 'std', 'min']
+        metrics += [f'p{int(p*100):02d}' for p in percentiles]
+        metrics += ['max']
+        if iqr:
+            metrics += ['iqr']
+
+        dst_paths = {}
+        for var in self.variables:
+            dst_paths[var] = []
+            for metric in metrics:
+                dst_paths[var].append(dst_pattern.format(**{"var": var, "metric": metric}))
+        assert (len(metrics) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+
+        self.apply_and_write_by_variable(fun=create_statistical_metrics,
+                                         dst_paths=dst_paths,
+                                         dtypes=dtypes,
+                                         compress=compress,
+                                         nodata=nodata,
+                                         percentiles=percentiles,
+                                         iqr=iqr,
+                                         num_workers=num_workers)
+
 
 class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
     def __init__(self,
@@ -603,7 +634,24 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
 
 
 def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
-
+    """Create a virtual time series from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
+    
+    Parameters
+    ----------
+    df_var : [type]
+        [description]
+    idx_virtual : [type]
+        [description]
+    num_workers : int, optional
+        [description], by default 1
+    verbosity : int, optional
+        [description], by default 0
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
     def _create_virtual_time_series_core(df, idx_virtual, verbosity=0):
 
         if verbosity:
@@ -655,3 +703,50 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
                                                      idx_virtual,
                                                      verbosity=verbosity)
     return df_result
+
+def create_statistical_metrics(df_var, percentiles=None, iqr=True, num_workers=1, verbosity=0):
+    """Calculate statistial metrics from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
+    
+    Parameters
+    ----------
+    df_var : [type]
+        [description]
+    percentiles : [type]
+        [description]
+    iqr : [type]
+        [description]
+    num_workers : int, optional
+        [description], by default 1
+    verbosity : int, optional
+        [description], by default 0
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    def _calc_statistical_metrics(df, percentiles=None, iqr=True):
+        """Calculate statistical metrics and the count of valid observations."""
+        metrics_df = df.transpose().describe(percentiles=percentiles).transpose()
+        if iqr and all(np.isin(["25%", "75%"], metrics_df.columns)) :
+            metrics_df["iqr"] = metrics_df["75%"] - metrics_df["25%"]
+            metrics_df = metrics_df.drop(labels=["count"], axis=1)
+        return metrics_df
+
+    if percentiles is None:
+        percentiles = [.1, .25, .50, .75, .9]
+
+    if (num_workers > 1) or (num_workers == -1):
+        import dask.dataframe as dd
+        df_var = dd.from_pandas(df_var, npartitions=num_workers)
+        df_result = df_var.map_partitions(_calc_statistical_metrics,
+                                          percentiles=percentiles,
+                                          iqr=iqr)
+        df_result = df_result.compute(scheduler='processes', num_workers=num_workers)
+    else:
+        df_result = _calc_statistical_metrics(df_var,
+                                              percentiles,
+                                              iqr)
+    return df_result
+
