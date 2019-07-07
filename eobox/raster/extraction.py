@@ -3,6 +3,7 @@ Module for extracting values of raster sampledata at location given by a vector 
 """
 
 import os
+import geopandas as gpd
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -10,12 +11,16 @@ import rasterio
 from tqdm import tqdm
 
 from ..raster.gdalutils import rasterize
+from ..raster.rasterprocessing import create_distance_to_raster_border
+from ..vector import calc_distance_to_border
 
 def extract(src_vector: str,
             burn_attribute: str,
             src_raster: list,
             dst_names: list,
             dst_dir: str,
+            dist2pb: bool = False,
+            dist2rb: bool = False,
             src_raster_template: str = None,
             gdal_dtype: int = 4,
             n_jobs: int = 1):
@@ -53,6 +58,13 @@ def extract(src_vector: str,
                            for ele in [f"aux_vector_{burn_attribute}",
                                        "aux_coord_x",
                                        "aux_coord_y"]}
+    if dist2pb:
+        path_dist2pb = os.path.join(dst_dir, f"aux_vector_dist2pb.tif")
+        paths_extracted_aux["aux_vector_dist2pb"] = os.path.join(dst_dir, f"aux_vector_dist2pb.npy")
+    if dist2rb:
+        path_dist2rb = os.path.join(dst_dir, f"aux_raster_dist2rb.tif")
+        paths_extracted_aux["aux_raster_dist2rb"] = os.path.join(dst_dir, f"aux_raster_dist2rb.npy")
+
     paths_extracted_raster = {}
     for path, name in zip(src_raster, dst_names):
         dst = f"{os.path.join(dst_dir, name)}.npy"
@@ -86,6 +98,26 @@ def extract(src_vector: str,
     if not all([os.path.exists(paths_extracted_aux["aux_coord_x"]),
                 os.path.exists(paths_extracted_aux["aux_coord_y"])]):
         _create_and_save_coords(path_rasterized, paths_extracted_aux, mask_arr)
+
+    if dist2pb and not os.path.exists(paths_extracted_aux["aux_vector_dist2pb"]):
+        calc_distance_to_border(polygons=src_vector,
+                                template_raster=path_rasterized,
+                                dst_raster=path_dist2pb,
+                                overwrite=True,
+                                keep_interim_files=False)
+        _extract_and_save_one_layer(path_dist2pb, 
+                                    paths_extracted_aux["aux_vector_dist2pb"], 
+                                    mask_arr)
+
+    if dist2rb and not os.path.exists(paths_extracted_aux["aux_raster_dist2rb"]):
+        create_distance_to_raster_border(src_raster = Path(path_rasterized),
+                                        dst_raster = Path(path_dist2rb),
+                                        maxdist=None, # None means we calculate distances for all pixels
+                                        overwrite=True)
+        _extract_and_save_one_layer(path_dist2rb, 
+                                    paths_extracted_aux["aux_raster_dist2rb"], 
+                                    mask_arr)
+
 
     # lets extract the raster values in case of sequential processing
     # or remove existing raster layers to prepare parallel processing
@@ -141,11 +173,11 @@ def _extract_and_save_one_layer(path_src, path_dst, mask_arr):
         raster_vals = src.read()[mask_arr]
         np.save(path_dst, raster_vals)
 
-
 def load_extracted(src_dir: str,
                    patterns="*.npy",
                    vars_in_cols: bool = True,
-                   index: pd.Series = None):
+                   index: pd.Series = None,
+                   head: bool = False):
     """Load data extracted and stored by :py:func:`extract`
 
     Arguments:
@@ -159,10 +191,12 @@ def load_extracted(src_dir: str,
             (default: {True})
         index {pd.Series} -- A boolean pandas Series which indicates with ``True`` which samples to
             load.
+        head {bool} -- Get a dataframe with the first five samples. 
 
     Returns:
         pandas.DataFrame -- A dataframe with the data.
     """
+
     def _load(path, index):
         if index is None:
             arr = np.load(str(path))
@@ -170,12 +204,19 @@ def load_extracted(src_dir: str,
             arr = np.load(str(path), mmap_mode="r")[index]
         return arr
 
-    src_dir = Path(src_dir)
     paths = []
     if isinstance(patterns, str):
         patterns = [patterns]
     for pat in patterns:
         paths += src_dir.glob(pat)
+
+    src_dir = Path(src_dir)
+    if head: # get a index which returns the first 5 rows
+        index = _load(paths[0], index=None)
+        index = pd.Series([0] * len(index), dtype=bool)
+        index.loc[0:5] = True
+        # print(index)
+
 
     if vars_in_cols:
         df_data = {}
@@ -193,3 +234,55 @@ def load_extracted(src_dir: str,
         if index is not None:
             df_data.columns = index.index[index]
     return df_data
+
+def add_vector_data_attributes_to_extracted(ref_vector, pid, dir_extracted, overwrite=False):
+    """From the vector dataset used for extraction save attributes as npy files corresponding to the extracted pixels values.
+    
+    Parameters
+    ----------
+    ref_vector : str or pathlib.Path
+        The vector dataset which has been used in :py:func:`extract`. 
+    pid : str
+        The ``burn_attribute`` that has been used in :py:func:`extract`.
+        Note that this only makes sense if the burn attribute is a unique feature (e.g. polygon) identifier.
+    dir_extracted : str or pathlib.Path
+        The output directory which has been used in :py:func:`extract`. 
+    overwrite : bool, optional
+        If ``True```existing data willbe overwritten, by default False
+    """
+    df_pixels = load_extracted(dir_extracted, f'aux_vector_{pid}.npy')
+    if ~isinstance(ref_vector, gpd.geodataframe.GeoDataFrame):
+        ref_vector = gpd.read_file(ref_vector)
+    df_pixels = df_pixels.merge(ref_vector.drop('geometry', axis=1), how='left', left_on=f'aux_vector_{pid}', right_on=pid)
+    for col in df_pixels.columns:
+        if df_pixels.dtypes[col] == 'object':
+            print(f"Skipping column {col} - datatype 'object' not (yet) supported.")
+            continue
+        if col != 'aux_vector_pid':
+            path_dst = Path(dir_extracted) / f'aux_vector_{col}.npy'
+            if not path_dst.exists() or overwrite:
+                np.save(path_dst, df_pixels[col].values)
+
+def convert_df_to_geodf(df, crs=None):
+    """Convert dataframe returned by ``load_extracted`` to a geodataframe.
+    
+    Parameters
+    ----------
+    df : dataframe
+        Dataframe as returned by ``load_extracted``. It must contain the columns *aux_coord_x* and *aux_coord_y*. 
+    crs : None, dict, str or Path, optional
+        The crs of the saved coordinates given as a dict, e.g. ``{'init':'epsg:4326'}``, or via the ``dir_extracted``.
+        In the latter (str, Path) case, it is assumed that the crs can be derived from any tiff that is located in the folder.
+        The defaultdoes not set any crs. By default None.
+    """
+    if isinstance(crs, str) or isinstance(crs, Path):
+        tif = list(crs.glob("*.tif"))[0]
+        with rasterio.open(tif) as src:
+            crs = src.crs
+    from shapely.geometry import Point
+    df["geometry"] = [Point(x, y)
+                      for x, y in zip(df['aux_coord_x'].values, df['aux_coord_y'].values)]
+    df = gpd.GeoDataFrame(df)
+    if crs is not None:
+        df.crs = crs
+    return df

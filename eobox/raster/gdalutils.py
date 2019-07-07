@@ -21,7 +21,6 @@ def _find_gdal_py_file(name):
 PROXIMITY_PATH = _find_gdal_py_file(name="gdal_proximity.py")
 POLYGONIZE_PATH = _find_gdal_py_file(name="gdal_polygonize.py")
 
-
 def buildvrt(input_file_list, output_file,
              relative=True, **kwargs):
     """Build a VRT
