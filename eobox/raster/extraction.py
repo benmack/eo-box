@@ -173,11 +173,32 @@ def _extract_and_save_one_layer(path_src, path_dst, mask_arr):
         raster_vals = src.read()[mask_arr]
         np.save(path_dst, raster_vals)
 
+def get_paths_of_extracted(src_dir: str,
+                           patterns="*.npy", 
+                           sort=True):
+    """Get the paths of extracted features. Used in load_extracted."""
+    src_dir = Path(src_dir)
+    paths = []
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    for pat in patterns:
+        if sort:
+            paths_add = sorted(Path(src_dir).glob(pat))
+            # paths += list(sorted(src_dir.glob(pat)))
+        else:
+            paths_add = src_dir.glob(pat)
+        if len(paths_add) == 0 :
+            raise Exception(f"Could not find any matches for: Path('{str(src_dir)}').glob('{pat}')")
+        paths += paths_add
+
+    return paths
+
 def load_extracted(src_dir: str,
                    patterns="*.npy",
                    vars_in_cols: bool = True,
                    index: pd.Series = None,
-                   head: bool = False):
+                   head: bool = False,
+                   sort: bool = True):
     """Load data extracted and stored by :py:func:`extract`
 
     Arguments:
@@ -204,11 +225,7 @@ def load_extracted(src_dir: str,
             arr = np.load(str(path), mmap_mode="r")[index]
         return arr
 
-    paths = []
-    if isinstance(patterns, str):
-        patterns = [patterns]
-    for pat in patterns:
-        paths += src_dir.glob(pat)
+    paths = get_paths_of_extracted(src_dir, patterns, sort=sort)
 
     src_dir = Path(src_dir)
     if head: # get a index which returns the first 5 rows
@@ -233,7 +250,73 @@ def load_extracted(src_dir: str,
         df_data = pd.concat(df_data)
         if index is not None:
             df_data.columns = index.index[index]
+
     return df_data
+
+def load_extracted_partitions(src_dir: dict,
+                              patterns="*.npy",
+                              index: dict = None,
+                              to_crs: dict = None,
+                              verbosity=0):
+    """Load multiple row-wise appended partitions (same columns) with :py:func:`load_extracted`.
+
+    Arguments:
+        src_dir {dict of str or Path} -- Multiple ``src_dir`` as in :py:func:`load_extracted` 
+            wrapped in a dictionary where the keys are the partition identifiers. 
+            The key will be written as column in the returning dataframe. 
+
+    Keyword Arguments:
+        patterns {str, or list of str} -- See :py:func:`load_extracted`.
+        index {dict pd.Series} -- See :py:func:`load_extracted` but as dict as in ``src_dir``.
+
+    Returns:
+        pandas.DataFrame -- A dataframe with the data.
+    """
+    
+    sort = True # does not make sense here to set to false - might cause concatenation problems 
+    head = False # does not make sense to be used here
+    vars_in_cols = True # not supported
+    
+    dfs = []
+    for i, (key, src) in enumerate(src_dir.items()): 
+        if verbosity > 0:
+            print("*" * 80)
+            print(f"Loading partition {key}")
+            print("- " * 20)
+        df_part = load_extracted(src, patterns, vars_in_cols=True, 
+                                  index=index, head=False, sort=True)
+        # # categories are nice:
+        # part_col = pd.Series(pd.Categorical([key] * df_part.shape[0], 
+        #                                     categories=src_dir.keys(),
+        #                                     ordered=False)).to_frame().rename({0:'partition'}, axis=1)
+        # # but if we save it we will get the message 'type not understood' ...
+        # # ... therefore we keep it simple by now
+        part_col = pd.Series([key] * df_part.shape[0]).to_frame().rename({0:'partition'}, axis=1)
+        part_col.index = df_part.index
+        df_part = pd.concat([part_col, df_part], axis=1)
+        print(f"Shape of partition dataframe: {df_part.shape}")
+        if to_crs is not None:
+            print(f"Converting partition to GeoDataFrame.")
+            df_part = convert_df_to_geodf(df_part, crs=src)
+            if isinstance(to_crs, dict):
+                if df_part.crs != to_crs:
+                    print(f"Reprojecting GeoDataFrame to {to_crs}.")
+                    df_part = df_part.to_crs(to_crs)
+            else:
+                # we set this here in the first look such that in case the projection changes we 
+                # reproject later
+                print(f"Setting target CRS to {df_part.crs}.")
+                to_crs = df_part.crs
+        dfs.append(df_part)
+        # print("\n".join([Path(p).stem for p in paths_npy[tile]]))
+        # print(df_aux[-1].columns)
+    dfs = pd.concat(dfs, axis='rows')
+    dfs = dfs.reset_index().rename({'index': 'inner_index'}, axis=1)
+    if verbosity > 0:
+        print("*" * 80)
+        print("*" * 80)
+        print(f"Shape of concatenated dataframe: {dfs.shape}")
+    return dfs
 
 def add_vector_data_attributes_to_extracted(ref_vector, pid, dir_extracted, overwrite=False):
     """From the vector dataset used for extraction save attributes as npy files corresponding to the extracted pixels values.
@@ -271,7 +354,7 @@ def convert_df_to_geodf(df, crs=None):
     df : dataframe
         Dataframe as returned by ``load_extracted``. It must contain the columns *aux_coord_x* and *aux_coord_y*. 
     crs : None, dict, str or Path, optional
-        The crs of the saved coordinates given as a dict, e.g. ``{'init':'epsg:4326'}``, or via the ``dir_extracted``.
+        The crs of the saved coordinates given as a dict, e.g. ``{'init':'epsg:32632'}``, or via the ``dir_extracted``.
         In the latter (str, Path) case, it is assumed that the crs can be derived from any tiff that is located in the folder.
         The defaultdoes not set any crs. By default None.
     """
