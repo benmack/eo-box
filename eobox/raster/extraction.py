@@ -2,8 +2,12 @@
 Module for extracting values of raster sampledata at location given by a vector dataset.
 """
 
-import os
+import dask.delayed
+from dask import delayed
+import dask.dataframe as dd
+import numpy as np
 import geopandas as gpd
+import os
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -218,13 +222,6 @@ def load_extracted(src_dir: str,
         pandas.DataFrame -- A dataframe with the data.
     """
 
-    def _load(path, index):
-        if index is None:
-            arr = np.load(str(path))
-        else:
-            arr = np.load(str(path), mmap_mode="r")[index]
-        return arr
-
     paths = get_paths_of_extracted(src_dir, patterns, sort=sort)
 
     src_dir = Path(src_dir)
@@ -369,3 +366,81 @@ def convert_df_to_geodf(df, crs=None):
     if crs is not None:
         df.crs = crs
     return df
+
+def _load(path, index=None, as_df=False):
+    """Load a single feature stored as npy file."""
+    if index is None:
+        arr = np.load(str(path), allow_pickle=True)
+    else:
+        arr = np.load(str(path), mmap_mode="r", allow_pickle=True)[index]
+
+    if as_df:
+        arr = pd.DataFrame({path.stem: arr})
+    return arr
+
+# DASK
+
+@delayed
+def _load_column(path, index=None):
+    """Load a single dataframe column given a numpy file path."""
+    if index is None:
+        arr = np.load(str(path), allow_pickle=True)
+    else:
+        arr = np.load(str(path), mmap_mode="r", allow_pickle=True)[index]
+    df = pd.DataFrame(arr)
+    df.columns = [path.stem]
+    return df
+
+@delayed
+def _concat_columns(column_list):
+    """Concatenate single dataframe columns."""
+    return pd.concat(column_list, axis=1)
+    
+
+# @delayed
+def load_extracted_dask(npy_path_list, index=None):
+    """Create a dask dataframe from a list of single features npy paths to be concatenated along the columns."""
+    column_list = []
+    for npy_path in npy_path_list:
+        column_list.append(_load_column(npy_path, index=index))
+    df = _concat_columns(column_list)
+    df = dd.from_delayed(df)
+    return df
+
+def load_extracted_partitions_dask(src_dir: dict,
+                                   global_index_col: str, # e.g. "aux_index_global",
+                                   patterns="*.npy",
+                                   verbosity=0):
+    """Load multiple row-wise appended partitions (same columns) with :py:func:`load_extracted` as dask dataframe.
+
+    Arguments:
+        src_dir {dict of str or Path} -- Multiple ``src_dir`` as in :py:func:`load_extracted` 
+            wrapped in a dictionary where the keys are the partition identifiers. 
+            The key will be written as column in the returning dataframe. 
+    Keyword Arguments:
+        global_index_col {str}: -- One of the columns matched by the patterns should be a 
+            global index, i.e. a index where each element is unique over all partitions. 
+        patterns {str, or list of str} -- See :py:func:`load_extracted`.
+
+    Returns:
+        dask.dataframe.core.DataFrame -- A dask dataframe with the data.
+    """
+    paths_npy = {}
+    stems_last = None
+    for i, (key, src) in enumerate(src_dir.items()):
+        paths_npy[key] = get_paths_of_extracted(src_dir[key], patterns, sort=True)
+        stems = [p.stem for p in paths_npy[key]]
+        # check if the stems are the same - needed to concatenate the tabels...
+        if stems_last is None:
+            stems_last = stems.copy()
+        else:
+            if not all([stem == stem_last for stem, stem_last in zip(stems, stems_last)]):
+                raise ValueError(f"Path stems in partition {key} do not match former stems.")
+    
+    dfs = []
+    for i, (key, patterns_part) in enumerate(paths_npy.items()):
+        if verbosity > 0:
+            print(key)
+        dfs.append(load_extracted_dask(patterns_part).set_index(global_index_col))
+    dfs = dd.concat(dfs)
+    return dfs
