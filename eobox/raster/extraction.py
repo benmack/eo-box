@@ -2,9 +2,6 @@
 Module for extracting values of raster sampledata at location given by a vector dataset.
 """
 
-import dask.delayed
-from dask import delayed
-import dask.dataframe as dd
 import numpy as np
 import geopandas as gpd
 import os
@@ -378,34 +375,35 @@ def _load(path, index=None, as_df=False):
         arr = pd.DataFrame({path.stem: arr})
     return arr
 
-# DASK
-
-@delayed
-def _load_column(path, index=None):
-    """Load a single dataframe column given a numpy file path."""
-    if index is None:
-        arr = np.load(str(path), allow_pickle=True)
-    else:
-        arr = np.load(str(path), mmap_mode="r", allow_pickle=True)[index]
-    df = pd.DataFrame(arr)
-    df.columns = [path.stem]
-    return df
-
-@delayed
-def _concat_columns(column_list):
-    """Concatenate single dataframe columns."""
-    return pd.concat(column_list, axis=1)
-    
-
-# @delayed
 def load_extracted_dask(npy_path_list, index=None):
     """Create a dask dataframe from a list of single features npy paths to be concatenated along the columns."""
-    column_list = []
-    for npy_path in npy_path_list:
-        column_list.append(_load_column(npy_path, index=index))
-    df = _concat_columns(column_list)
-    df = dd.from_delayed(df)
-    return df
+
+    import dask.delayed
+    from dask import delayed
+    import dask.dataframe as dd
+
+    @delayed
+    def _load_column(path, index=None):
+        """Load a single dataframe column given a numpy file path."""
+        if index is None:
+            arr = np.load(str(path), allow_pickle=True)
+        else:
+            arr = np.load(str(path), mmap_mode="r", allow_pickle=True)[index]
+        df = pd.DataFrame(arr)
+        df.columns = [path.stem]
+        return df
+
+    @delayed
+    def _concat_columns(column_list):
+        """Concatenate single dataframe columns."""
+        return pd.concat(column_list, axis=1)
+        
+        column_list = []
+        for npy_path in npy_path_list:
+            column_list.append(_load_column(npy_path, index=index))
+        df = _concat_columns(column_list)
+        df = dd.from_delayed(df)
+        return df
 
 def load_extracted_partitions_dask(src_dir: dict,
                                    global_index_col: str, # e.g. "aux_index_global",
