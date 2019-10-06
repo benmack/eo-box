@@ -381,7 +381,7 @@ def load_extracted_dask(npy_path_list, index=None):
     import dask.delayed
     from dask import delayed
     import dask.dataframe as dd
-
+    
     @delayed
     def _load_column(path, index=None):
         """Load a single dataframe column given a numpy file path."""
@@ -398,12 +398,13 @@ def load_extracted_dask(npy_path_list, index=None):
         """Concatenate single dataframe columns."""
         return pd.concat(column_list, axis=1)
         
-        column_list = []
-        for npy_path in npy_path_list:
-            column_list.append(_load_column(npy_path, index=index))
-        df = _concat_columns(column_list)
-        df = dd.from_delayed(df)
-        return df
+    column_list = []
+    for npy_path in npy_path_list:
+        column_list.append(_load_column(npy_path, index=index))
+    df = _concat_columns(column_list)
+    df = dd.from_delayed(df)
+    
+    return df
 
 def load_extracted_partitions_dask(src_dir: dict,
                                    global_index_col: str, # e.g. "aux_index_global",
