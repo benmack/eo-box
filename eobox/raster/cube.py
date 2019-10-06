@@ -533,6 +533,7 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
     def create_statistical_metrics(self,
                                    percentiles,
                                    iqr,
+                                   diffs,
                                    dst_pattern, #"./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
                                    dtypes,
                                    compress="lzw",
@@ -543,7 +544,13 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
         metrics += [f'p{int(p*100):02d}' for p in percentiles]
         metrics += ['max']
         if iqr:
-            metrics += ['iqr']
+            metrics += ['p75-p25']
+        if diffs:
+            metrics += ['min-max']
+            if 0.05 in percentiles and 0.95 in percentiles:
+                metrics += ['p95-p05']
+            if 0.10 in percentiles and 0.90 in percentiles:
+                metrics += ['p90-p10']
 
         dst_paths = {}
         for var in self.variables:
@@ -559,6 +566,7 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                                          nodata=nodata,
                                          percentiles=percentiles,
                                          iqr=iqr,
+                                         diffs=diffs,
                                          num_workers=num_workers)
 
 
@@ -704,7 +712,7 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
                                                      verbosity=verbosity)
     return df_result
 
-def create_statistical_metrics(df_var, percentiles=None, iqr=True, num_workers=1, verbosity=0):
+def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, num_workers=1, verbosity=0):
     """Calculate statistial metrics from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
     
     Parameters
@@ -726,12 +734,19 @@ def create_statistical_metrics(df_var, percentiles=None, iqr=True, num_workers=1
         [description]
     """
 
-    def _calc_statistical_metrics(df, percentiles=None, iqr=True):
+    def _calc_statistical_metrics(df, percentiles=None, iqr=True, diffs=True):
         """Calculate statistical metrics and the count of valid observations."""
         metrics_df = df.transpose().describe(percentiles=percentiles).transpose()
-        if iqr and all(np.isin(["25%", "75%"], metrics_df.columns)) :
-            metrics_df["iqr"] = metrics_df["75%"] - metrics_df["25%"]
-            metrics_df = metrics_df.drop(labels=["count"], axis=1)
+        if iqr and all(np.isin(["25%", "75%"], metrics_df.columns)):
+            metrics_df["p75-p25"] = metrics_df["75%"] - metrics_df["25%"]
+        # other differences         
+        if diffs and all(np.isin(["min", "max"], metrics_df.columns)):
+            metrics_df["max-min"] = metrics_df["max"] - metrics_df["min"]
+        if diffs and all(np.isin(["5%", "95%"], metrics_df.columns)):
+            metrics_df["p95-p05"] = metrics_df["95%"] - metrics_df["5%"]
+        if diffs and all(np.isin(["10%", "90%"], metrics_df.columns)):
+            metrics_df["p90-p10"] = metrics_df["90%"] - metrics_df["10%"]
+        metrics_df = metrics_df.drop(labels=["count"], axis=1)
         return metrics_df
 
     if percentiles is None:
@@ -742,11 +757,13 @@ def create_statistical_metrics(df_var, percentiles=None, iqr=True, num_workers=1
         df_var = dd.from_pandas(df_var, npartitions=num_workers)
         df_result = df_var.map_partitions(_calc_statistical_metrics,
                                           percentiles=percentiles,
-                                          iqr=iqr)
+                                          iqr=iqr,
+                                          diffs=diffs)
         df_result = df_result.compute(scheduler='processes', num_workers=num_workers)
     else:
         df_result = _calc_statistical_metrics(df_var,
                                               percentiles,
-                                              iqr)
+                                              iqr,
+                                              diffs=diffs)
     return df_result
 
