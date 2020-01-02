@@ -13,10 +13,13 @@ def plot_confusion_matrix(cm,
                           fmt=",", 
                           annot_kws=None,
                           cbar=False,
+                          mask_zeros=False,
                           ax=None):
     """Plot a confusion matrix with the precision and recall added.
     
     TODO: documentation ...
+
+    TODO: check https://github.com/wcipriano/pretty-print-confusion-matrix
 
     switch_axes if False the CM is returned as is the default of sklearn 
     with the rows being the actual class and the columns the predicted class
@@ -38,8 +41,8 @@ def plot_confusion_matrix(cm,
     col_wise_sums = cm.sum(axis=0)
     row_wise_sums = cm.sum(axis=1)
 
-    recall = np.round((diagonal / col_wise_sums * 100), 2).astype(cm.dtype)
-    precision = np.round((diagonal / row_wise_sums * 100), 0).astype(cm.dtype)
+    precision = np.round((diagonal / row_wise_sums * 100), 2).astype(cm.dtype)
+    recall = np.round((diagonal /  col_wise_sums * 100), 0).astype(cm.dtype)
     precision_dim_expanded = np.expand_dims(np.concatenate((precision, [0])), axis=1)
     overall_accuracy = np.round((diagonal.sum() / n_samples) * 100, 0).astype(cm.dtype)
     cm = np.concatenate([cm, np.expand_dims(recall, axis=0)], axis=0)
@@ -74,18 +77,22 @@ def plot_confusion_matrix(cm,
                                   np.array(['Prec.'])))
     
     if switch_axes:
-        xticklabels = labels_prec
-        yticklabels = labels_rec
-        cm = cm.transpose()
-        cm_annot = cm_annot.transpose()
-        ylabel = 'Actual'
-        xlabel = 'Predicted'
-    else:
         xticklabels = labels_rec
         yticklabels = labels_prec
         ylabel = 'Predicted'
         xlabel = 'Actual'
-
+        cm = cm.transpose()
+        cm_annot = cm_annot.transpose()
+    else:
+        xticklabels = labels_prec
+        yticklabels = labels_rec
+        ylabel = 'Actual'
+        xlabel = 'Predicted'
+    if mask_zeros:
+        mask = cm == 0
+    else:
+        mask = None
+    mask = cm == 0
     ax = sns.heatmap(cm, 
                      vmin=vmin, 
                      vmax=vmax,
@@ -99,7 +106,13 @@ def plot_confusion_matrix(cm,
                      annot=cm_annot,
                      annot_kws=annot_kws, 
                      square=True, 
+                     mask=mask,
                      ax=ax)
+
+    # fix matplotlib 3.1.1 bug
+    # https://stackoverflow.com/questions/56942670/matplotlib-seaborn-first-and-last-row-cut-in-half-of-heatmap-plot
+    bottom, top = ax.get_ylim()
+    ax.set_ylim(bottom + 0.5, top - 0.5)
 
     tick_marks = np.arange(len(class_names))
     ax.set_ylabel(ylabel)

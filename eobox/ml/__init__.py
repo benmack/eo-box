@@ -10,4 +10,5 @@ For more information on the package content, visit [readthedocs](https://eo-box.
 
 """
 
-from .evaluation import plot_confusion_matrix
+from .plot import plot_confusion_matrix
+from .clf_extension import predict_extended
