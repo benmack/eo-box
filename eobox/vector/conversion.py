@@ -12,7 +12,7 @@ from ..raster.gdalutils import PROXIMITY_PATH
 
 
 def calc_distance_to_border(polygons, template_raster, dst_raster, overwrite=False,
-                            keep_interim_files=False):
+                            keep_interim_files=False, verbosity=0):
     """Calculate the distance of each raster cell (in and outside the polygons) to the next polygon border.
     
     Arguments:
@@ -28,7 +28,8 @@ def calc_distance_to_border(polygons, template_raster, dst_raster, overwrite=Fal
         [type] -- [description]
     """
     if Path(dst_raster).exists() and not overwrite:
-        print(f"Returning 0 - File exists: {dst_raster}")
+        if verbosity > 0:
+            print(f"Returning 0 - File exists: {dst_raster}")
         return 0
 
     with rasterio.open(template_raster) as tmp:
@@ -61,7 +62,8 @@ def calc_distance_to_border(polygons, template_raster, dst_raster, overwrite=Fal
     if not keep_interim_files:
         shutil.rmtree(tempdir)
     else:
-        print(f"Interim files are in {tempdir}")
+        if verbosity > 0:
+            print(f"Interim files are in {tempdir}")
     return 0
 
 def convert_polygons_to_lines(src_polygons, dst_lines, crs=None, add_allone_col=False):

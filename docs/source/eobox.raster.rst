@@ -10,8 +10,13 @@ Submodules:
 
 .. toctree::
 
+   eobox.raster.cube
+
    eobox.raster.extraction
-   
-   eobox.raster.rasterprocessing
 
    eobox.raster.gdalutils
+
+   eobox.raster.rasterprocessing
+
+   eobox.raster.utils
+

@@ -4,6 +4,11 @@ import rasterio
 from rasterio.warp import reproject
 from rasterio.enums import Resampling
 from rasterio import transform
+import shutil
+import subprocess
+import tempfile
+
+from .gdalutils import PROXIMITY_PATH
 
 class MultiRasterIO():
     def __init__(self, layer_files: list,
@@ -331,3 +336,39 @@ def windows_from_blocksize(blocksize_xy, width, height):
             bysize = blockysize
         blocksize_wins.append([[ridx, cidx], rasterio.windows.Window(coff, roff, bxsize, bysize)])
     return blocksize_wins
+
+def create_distance_to_raster_border(src_raster, dst_raster, maxdist=None, overwrite=False):
+    """Create a raster with pixels values being the distance to the raster border (pixel distances)."""
+    if not dst_raster.exists() or overwrite:
+
+        # from a template raster create a raster where the outer pixel rows and columns are 1
+        # and the rest are 0
+        with rasterio.open(src_raster) as src:
+            arr = (src.read() * 0).astype('uint8')
+            arr[0, 0, :] = 1
+            arr[0, arr.shape[1]-1, :] = 1
+            arr[0, :, 0] = 1
+            arr[0, :, arr.shape[2]-1] = 1
+            meta = src.meta
+
+            meta.update(dtype='uint8')
+            temp_dir = Path(tempfile.mkdtemp(prefix=f"TEMPDIR_{dst_raster.stem}_", dir=dst_raster.parent))
+            temp_file = temp_dir / "frame.tif"
+            with rasterio.open(temp_file, 'w', **meta) as dst:
+                dst.write(arr)
+        
+        # calculate the proximity to the raster border
+
+        # get the minimum datatype necessary to store the distances
+        if maxdist is None:
+            maxdist = int(np.ceil(max(arr.shape) / 2))
+        dtype = rasterio.dtypes.get_minimum_dtype(maxdist)
+
+        output_format = rasterio.dtypes.typename_fwd[rasterio.dtypes.dtype_rev[dtype]]
+        cmd = f"{PROXIMITY_PATH} " \
+              f"{str(Path(temp_file).absolute())} " \
+              f"{str(Path(dst_raster).absolute())} " \
+              f"-co COMPRESS=DEFLATE " \
+              f"-ot {output_format} -distunits PIXEL -values 1 -maxdist {maxdist}"
+        subprocess.check_call(cmd, shell=True)
+        shutil.rmtree(temp_dir)

@@ -26,7 +26,7 @@ def get_version():
     return version
 
 setup(name='eobox',
-      python_requires='>=3.5,<3.7',
+      python_requires='>=3.5',
       version=get_version(),
       description='A toolbox for processing earth observation data with Python.',
       long_description=get_long_description(),

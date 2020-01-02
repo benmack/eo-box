@@ -76,12 +76,17 @@ class EOCubeAbstract():
 
         * several band and of one date (date given as strings, band as list of strings)
 
-        Arguments:
-            band {str or list} -- Band(s) for which to derive the iloc index.
-            date {str or list} -- Date(s) for which to derive the iloc index.
-
-        Returns:
-            int or list -- Integer (if band and date are str) or list of iloc indices.
+        Parameters
+        ----------
+        band : str or list
+            Band(s) for which to derive the iloc index.
+        date : str or list
+            Date(s) for which to derive the iloc index.
+        
+        Returns
+        -------
+        int or list 
+            Integer (if band and date are str) or list of iloc indices.
         """
 
         df = self.df_layers.copy()
@@ -358,7 +363,43 @@ class EOCubeSceneCollectionAbstract(EOCubeAbstract):
                  qa_valid,
                  # timeless=None,
                  wdir=None):
+        """Handling scene collections, i.e. a set of scenes each with the same layers.
 
+        The class enables to perform chunkwise processing over a set of scenes having
+        the same variables / bands.
+        Therefore the ``df_layers`` dataframe requires information to be stored in the following columns:
+
+        * *sceneid* (unique identifier of the scene),
+        
+        * *date* (the aquisition date of the scene as datetime type),
+        
+        * *band* (the layers / bands that exist for all scenes),
+        
+        * *uname* (unique identifier for all layers, i.e. scene + variable/qu-layer),
+        
+        * *path* (the path where the raster for that layer is located).
+
+        Parameters
+        ----------
+        df_layers : dataframe
+            A dataframe, see description above. 
+        chunksize : int
+            Size of the spatial window used as processing unit.
+        variables : list of str
+            Those values in ``df_layers['band']`` that are treated as variables.
+        qa : str
+            The value in ``df_layers['band']`` which is treated as quality assessment layer.
+        qa_valid : list of int
+            The values in the qualitiy assessment layer that identify pixels
+            to be considered as valid in the variable rasters., by default None
+        wdir : str, optional
+            Working directory
+            
+        Raises
+        ------
+        ValueError
+            [description]
+        """
         # validation and formatting
         n_per_sceneid = len(variables) + 1 # i.e. qa layer
         scenes_complete = df_layers.groupby("sceneid").apply(
@@ -394,7 +435,7 @@ class EOCubeSceneCollectionAbstract(EOCubeAbstract):
 class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
 
     def get_chunk(self, ji):
-        """Get a EOCubeChunk"""
+        """Get a EOCubeSceneCollectionChunk"""
         return EOCubeSceneCollectionChunk(ji=ji,
                                           df_layers=self.df_layers,
                                           chunksize=self.chunksize,
@@ -480,8 +521,7 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                 dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
         assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
 
-        self.apply_and_write_by_variable(# mask=True,
-                                         fun=create_virtual_time_series,
+        self.apply_and_write_by_variable(fun=create_virtual_time_series,
                                          dst_paths=dst_paths,
                                          dtypes=dtypes,
                                          compress=compress,
@@ -489,6 +529,45 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                                          idx_virtual=idx_virtual,
                                          num_workers=num_workers,
                                          verbosity=0)
+
+    def create_statistical_metrics(self,
+                                   percentiles,
+                                   iqr,
+                                   diffs,
+                                   dst_pattern, #"./xxx_uncontrolled/ls2008_vts4w/ls2008_vts4w_{date}_{var}.vrt"
+                                   dtypes,
+                                   compress="lzw",
+                                   nodata=None,
+                                   num_workers=1):
+
+        metrics = ['mean', 'std', 'min']
+        metrics += [f'p{int(p*100):02d}' for p in percentiles]
+        metrics += ['max']
+        if iqr:
+            metrics += ['p75-p25']
+        if diffs:
+            metrics += ['min-max']
+            if 0.05 in percentiles and 0.95 in percentiles:
+                metrics += ['p95-p05']
+            if 0.10 in percentiles and 0.90 in percentiles:
+                metrics += ['p90-p10']
+
+        dst_paths = {}
+        for var in self.variables:
+            dst_paths[var] = []
+            for metric in metrics:
+                dst_paths[var].append(dst_pattern.format(**{"var": var, "metric": metric}))
+        assert (len(metrics) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+
+        self.apply_and_write_by_variable(fun=create_statistical_metrics,
+                                         dst_paths=dst_paths,
+                                         dtypes=dtypes,
+                                         compress=compress,
+                                         nodata=nodata,
+                                         percentiles=percentiles,
+                                         iqr=iqr,
+                                         diffs=diffs,
+                                         num_workers=num_workers)
 
 
 class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
@@ -563,7 +642,24 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
 
 
 def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
-
+    """Create a virtual time series from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
+    
+    Parameters
+    ----------
+    df_var : [type]
+        [description]
+    idx_virtual : [type]
+        [description]
+    num_workers : int, optional
+        [description], by default 1
+    verbosity : int, optional
+        [description], by default 0
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
     def _create_virtual_time_series_core(df, idx_virtual, verbosity=0):
 
         if verbosity:
@@ -615,3 +711,59 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
                                                      idx_virtual,
                                                      verbosity=verbosity)
     return df_result
+
+def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, num_workers=1, verbosity=0):
+    """Calculate statistial metrics from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
+    
+    Parameters
+    ----------
+    df_var : [type]
+        [description]
+    percentiles : [type]
+        [description]
+    iqr : [type]
+        [description]
+    num_workers : int, optional
+        [description], by default 1
+    verbosity : int, optional
+        [description], by default 0
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    def _calc_statistical_metrics(df, percentiles=None, iqr=True, diffs=True):
+        """Calculate statistical metrics and the count of valid observations."""
+        metrics_df = df.transpose().describe(percentiles=percentiles).transpose()
+        if iqr and all(np.isin(["25%", "75%"], metrics_df.columns)):
+            metrics_df["p75-p25"] = metrics_df["75%"] - metrics_df["25%"]
+        # other differences         
+        if diffs and all(np.isin(["min", "max"], metrics_df.columns)):
+            metrics_df["max-min"] = metrics_df["max"] - metrics_df["min"]
+        if diffs and all(np.isin(["5%", "95%"], metrics_df.columns)):
+            metrics_df["p95-p05"] = metrics_df["95%"] - metrics_df["5%"]
+        if diffs and all(np.isin(["10%", "90%"], metrics_df.columns)):
+            metrics_df["p90-p10"] = metrics_df["90%"] - metrics_df["10%"]
+        metrics_df = metrics_df.drop(labels=["count"], axis=1)
+        return metrics_df
+
+    if percentiles is None:
+        percentiles = [.1, .25, .50, .75, .9]
+
+    if (num_workers > 1) or (num_workers == -1):
+        import dask.dataframe as dd
+        df_var = dd.from_pandas(df_var, npartitions=num_workers)
+        df_result = df_var.map_partitions(_calc_statistical_metrics,
+                                          percentiles=percentiles,
+                                          iqr=iqr,
+                                          diffs=diffs)
+        df_result = df_result.compute(scheduler='processes', num_workers=num_workers)
+    else:
+        df_result = _calc_statistical_metrics(df_var,
+                                              percentiles,
+                                              iqr,
+                                              diffs=diffs)
+    return df_result
+

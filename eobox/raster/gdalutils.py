@@ -3,20 +3,23 @@ from osgeo import gdal, gdalconst, ogr
 from pathlib import Path
 import warnings
 
-# find the path to the gdal_proximity.py - I found it in these places so far...
-try:
-    PROXIMITY_PATH = str(list(Path(gdal.__file__).parent.rglob("*proximity.py"))[0])
-except:
-    PROXIMITY_PATH = None
-try:
-    PROXIMITY_PATH = str(list(Path(gdal.__file__).parent.parent.rglob("GDAL*/scripts/*proximity.py"))[0])
-except:
-    PROXIMITY_PATH = None
+def _find_gdal_py_file(name):
+    # find the path to the gdal_proximity.py - I found it in these places so far...
+    try:
+        PATH = str(list(Path(gdal.__file__).parent.rglob(name))[0])
+    except:
+        PATH = None
+    try:
+        PATH = str(list(Path(gdal.__file__).parent.parent.rglob(f"GDAL*/scripts/{name}"))[0])
+    except:
+        PATH = None
 
-if PROXIMITY_PATH is None:
-    warnings.warn("Could not find the path of gdal_proximity.py: Searched in " + \
-                    f"{Path(gdal.__file__).parent}, {str(Path(gdal.__file__).parent.parent)+'/GDAL*/scripts'}.")
-
+    if PATH is None:
+        warnings.warn(f"Could not find the path of {name}: Searched in " + \
+                        f"{Path(gdal.__file__).parent}, {str(Path(gdal.__file__).parent.parent)+'/GDAL*/scripts'}.")
+    return PATH
+PROXIMITY_PATH = _find_gdal_py_file(name="gdal_proximity.py")
+POLYGONIZE_PATH = _find_gdal_py_file(name="gdal_polygonize.py")
 
 def buildvrt(input_file_list, output_file,
              relative=True, **kwargs):

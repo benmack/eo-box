@@ -18,4 +18,6 @@ raster
 
     examples/raster/cube_viz.ipynb
 
-    examples/raster/cube_custom_functions_with_eocubescenecollection.ipynb
+    examples/raster/eocubescenecollection_from_level2_to_level3_products.ipynb
+
+    examples/raster/eocubescenecollection_custom_functions.ipynb
