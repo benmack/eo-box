@@ -24,33 +24,54 @@ def extract(src_vector: str,
             dist2rb: bool = False,
             src_raster_template: str = None,
             gdal_dtype: int = 4,
-            n_jobs: int = 1):
-    """Extract values from list of single band raster for pixels overlapping with a vector data.
+            n_jobs: int = 1) -> int:
+    """Extract pixel values of a list of single-band raster files overlaying with a vector dataset.
+    
+    This function does not return the extracted values but stores them in the ``dst_dir`` directory.
+    The extracted values of each raster will be stored as a separate *NumPy* binary file as well as 
+    the values of the ``burn_attribute``. 
+    Additionally, the folder will contain one or more intermediate GeoTIFF files, e.g, the 
+    rasterized ``burn_attribute`` and, if selected, the ``dist2pb`` and/or ``dist2rp`` layer.
 
-    The extracted data will be stored in the ``dst_dir`` by using the ``dst_names`` for the
-    filename. If a file with a given name already exists the raster will be skipped.
+    Note that also the pixel coordinates will be extracted and stored as ``aux_coord_y`` and 
+    ``aux_coord_x``. Therefore these names should be avoided in ``dst_names``.
+
+    The function ``add_vector_data_attributes_to_extracted`` can be used to add other attributes 
+    from ``src_vector`` to the store of extracted values such that they can be loaded easily 
+    together with the other data.
+
+    With ``load_extracted`` the data can then be loaded conveniently.
+
+    If a file with a given name already exists the raster will be skipped.
 
     Arguments:
-        src_vector {str} -- Filename of the vector dataset. Currently it must have the same CRS as
-            the raster.
+        src_vector {str} -- Filename of the vector dataset. Currently, it must have the same CRS as the raster.
         burn_attribute {str} -- Name of the attribute column in the ``src_vector`` dataset to be
             stored with the extracted data. This should usually be a unique ID for the features
-            (points, lines, polygons) in the vector dataset.
-        src_raster {list} -- List of filenames of the single band raster files from which to
-            extract.
+            (points, lines, polygons) in the vector dataset. Note that this attribute should not contain zeros 
+            since this value is internally used for pixels that should not be extracted, or, in other words, 
+            that to not overlap with the vector data.
+        src_raster {list} -- List of file paths of the single-band raster files from which to extract the pixel 
+            values from.
         dst_names {list} -- List corresponding to ``src_raster`` names used to store and later
             identify the extracted to.
         dst_dir {str} -- Directory to store the data to.
-
+        
     Keyword Arguments:
+        dist2pb {bool} -- Create an additional auxiliary layer containing the distance to the closest 
+            polygon border for each extracted pixels. Defaults to ``False``.
+        dist2rb {bool} -- Create an additional auxiliary layer containing the distance to the closest 
+            raster border for each extracted pixels. Defaults to ``False``.
         src_raster_template {str} -- A template raster to be used for rasterizing the vectorfile.
             Usually the first element of ``src_raster``. (default: {None})
         gdal_dtype {int} -- Numeric GDAL data type, defaults to 4 which is UInt32.
             See https://github.com/mapbox/rasterio/blob/master/rasterio/dtypes.py for useful look-up
             tables.
+        n_jobs {int} -- Number of parallel processors to be use for extraction. -1 uses all processors.
+            Defaults to 1. 
 
     Returns:
-        [int] -- If successful, 0 is returned as exit code.
+        [int] -- If successful the function returns 0 as an exit code and 1 otherwise.
     """
     if src_raster_template is None:
         src_raster_template = src_raster[0]
