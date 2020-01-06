@@ -25,6 +25,12 @@ So far, the following subpackages are available:
 
     * distance-to-polygon border calculation.
 
+* **eobox.ml** contains machine learning related tools, e.g.
+
+    * plotting a confusion matrix including with precision and recall
+
+    * extended predict function which returns prediction, confidences, and probabilities.  
+
 
 ## Installation
 
