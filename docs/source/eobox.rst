@@ -9,3 +9,4 @@ Subpackages:
     eobox.raster
     eobox.sampledata
     eobox.vector
+    eobox.ml
