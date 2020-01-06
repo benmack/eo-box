@@ -7,9 +7,13 @@ dependencies:
 - cython
 - libgdal
 - gdal
+- geopandas
+- matplotlib
 - pandas
 - numpy
 - rasterio
+- seaborn
+- tqdm
 - pip:
   - sphinx>=1.8
   - sphinx-rtd-theme

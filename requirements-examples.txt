@@ -1,8 +1,11 @@
 # package dependencies
 gdal
+geopandas
+matplotlib
 numpy
 pandas
 rasterio
+seaborn
 tqdm
 
 # to open and run the examples, i.e. notebooks
@@ -10,9 +13,6 @@ jupyter
 
 # in addition to the ones above for sampledata examples
 affine
-matplotlib
-seaborn
 
 # in addition to the ones above for raster examples
-geopandas
 scikit-learn

@@ -346,7 +346,7 @@ def add_vector_data_attributes_to_extracted(ref_vector, pid, dir_extracted, over
     dir_extracted : str or pathlib.Path
         The output directory which has been used in :py:func:`extract`. 
     overwrite : bool, optional
-        If ``True```existing data willbe overwritten, by default False
+        If ``True`` existing data will be overwritten, by default `False`-
     """
     df_pixels = load_extracted(dir_extracted, f'aux_vector_{pid}.npy')
     if ~isinstance(ref_vector, gpd.geodataframe.GeoDataFrame):

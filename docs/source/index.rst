@@ -41,6 +41,7 @@ So far, the following subpackages are available:
    examples_sampledata
    examples_raster
    examples_vector
+   examples_ml
 
 .. toctree::
    :maxdepth: 2
