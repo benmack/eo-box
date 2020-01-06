@@ -1,6 +1,8 @@
 gdal
 geopandas
+matplotlib
 numpy
 pandas
 rasterio
+seaborn
 tqdm
