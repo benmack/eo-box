@@ -92,7 +92,7 @@ def plot_confusion_matrix(cm,
         mask = cm == 0
     else:
         mask = None
-    mask = cm == 0
+    
     ax = sns.heatmap(cm, 
                      vmin=vmin, 
                      vmax=vmax,
