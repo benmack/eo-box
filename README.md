@@ -17,7 +17,15 @@ So far, the following subpackages are available:
 
     * extracting raster values at given (by vector data) locations,
 
-    * window- / chunk-wise processing of multiple single layer raster files as a stack.
+    * window- / chunk-wise processing of multiple single layer raster 
+      files that do not fit in memory, e.g.
+
+      * calculating virtual time series and temporal statistical 
+        metrics from all cloud-free observations,
+      
+      * predicting a machine learning model,
+
+      * custom processing functions.
 
 * **eobox.vector** contains vector processing tools for
 
