@@ -1,23 +1,37 @@
-
-Great best-practice ressource for contribution in a open source GitHub context. 
-
 ## Contributer
+
+TODO: Create best-practice ressource for contribution in a open source GitHub context. 
 
 ## Maintainer
 
-### Release a new version to PyPi (from master)
+### Release a new version
 
-Prerequisites:
+#### Prerequisites:
 
 * Owner rights for the package on : https://test.pypi.org/manage/projects/
 
 * Owner rights for the package on : https://pypi.org/manage/projects/
 
+#### Steps
 
-Steps:
+##### Develop branch
 
-* Make sure you have set a new version number.
+* Update the changelog and set a new version number.
 
 * Make sure you have updated / synchronized the *README.md* and the info in *docs/source/index.rst* and *docs/source/install.rst* until the last two are not automatically taken from the *README.md*.
 
-* Then follow the [guide for generating and uploading distribution archives](https://packaging.python.org/tutorials/packaging-projects/#generating-distribution-archives)
+* Follow the [guide for generating and uploading distribution archives](https://packaging.python.org/tutorials/packaging-projects/#generating-distribution-archives) for testing from the develop branch.
+
+* Install the new version and try it out:
+
+  `python3 -m pip install --index-url https://test.pypi.org/simple/ --no-deps eobox==0.3.2`
+
+##### Master branch
+
+* Merge the develop branch into master
+
+* Create a new tag `git tag -a v0.3.2 -m "new release v0.3.2"` & `git push origin --tags`
+
+* Create a new release on GitHub and upload files
+
+* Upload to PyPi from master without `python3 -m twine upload dist/*`.
