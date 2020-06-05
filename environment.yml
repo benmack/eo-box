@@ -1,21 +1,29 @@
-name: _eotools
+name: eobox
 channels:
 - conda-forge
 - defaults
 dependencies:
-- python>=3.5
+- affine
+- descartes
 - cython
 - libgdal
 - gdal
 - geopandas
 - matplotlib
 - pandas
+- pip
+- python=3.6 
+- pytest>=3.6.0
+- m2r
 - numpy
 - rasterio
 - seaborn
 - tqdm
+- scikit-learn
+- sphinx>=1.8
+- twine
+- nbsphinx
+- ipython
+- jupyter
 - pip:
-  - sphinx>=1.8
   - sphinx-rtd-theme
-  - nbsphinx
-  - ipython

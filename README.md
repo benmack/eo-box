@@ -45,7 +45,14 @@ So far, the following subpackages are available:
 The package requires Python 3. It can be installed with the following command:
 
 ```bash
-pip3 install eobox
+pip install eobox
+```
+
+The *environment.yaml* in the repository can be used to setup a conda environment with all dependencies required for using and building the package and running the tests and documentation code.
+
+```bash
+conda env create --name=eobox --file=environment.yml
+pip install eobox
 ```
 
 ## Documentation
