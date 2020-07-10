@@ -55,6 +55,12 @@ conda env create --name=eobox --file=environment.yml
 pip install eobox
 ```
 
+## Docker
+
+  docker image build -t benmack/eobox:latest -f docker/eobox.dockerfile .
+
+  docker run  -v ${PWD}:/home/eoboxer/host_pwd -p 8888:8888 benmack/eobox:latest
+
 ## Documentation
 
 The package documentation can be found at [readthedocs](https://eo-box.readthedocs.io/).

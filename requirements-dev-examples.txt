@@ -1,15 +1,21 @@
 # package dependencies
 affine
+dask[complete]
 descartes
 # gdal
 geopandas
 matplotlib
+nbsphinx # dev
 numpy
 gdal
 pandas
+pytest # dev
 rasterio
 seaborn
+sphinx # dev
+sphinx_rtd_theme # dev
 tqdm
+twine # dev
 # to open and run the examples, i.e. notebooks
 jupyter
 # in addition to the ones above for sampledata examples

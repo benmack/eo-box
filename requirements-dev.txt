@@ -1,5 +1,4 @@
 pytest>=3.6.0
 twine
-m2r
 nbsphinx
 sphinx_rtd_theme
