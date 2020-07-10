@@ -9,10 +9,17 @@ def _find_gdal_py_file(name):
         PATH = str(list(Path(gdal.__file__).parent.rglob(name))[0])
     except:
         PATH = None
-    try:
-        PATH = str(list(Path(gdal.__file__).parent.parent.rglob(f"GDAL*/scripts/{name}"))[0])
-    except:
-        PATH = None
+    if PATH is None:
+        try:
+            PATH = str(list(Path(gdal.__file__).parent.parent.rglob(f"GDAL*/scripts/{name}"))[0])
+        except:
+            PATH = None
+    if PATH is None:
+        try:
+            PATH = str(list(Path("/usr/bin").glob(f"{name}"))[0])
+        except:
+            PATH = None
+
 
     if PATH is None:
         warnings.warn(f"Could not find the path of {name}: Searched in " + \
