@@ -9,6 +9,8 @@ All notable changes to **eo-box** will be listed here starting from version 3.2.
 Added
 ~~~~~
 
+* Dockerfile
+
 Changed
 ~~~~~~~
 

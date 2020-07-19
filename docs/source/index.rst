@@ -33,6 +33,7 @@ So far, the following subpackages are available:
    :caption: Getting Started
 
    install
+   docker
 
 .. toctree::
    :maxdepth: 2

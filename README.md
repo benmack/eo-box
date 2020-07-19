@@ -57,9 +57,7 @@ pip install eobox
 
 ## Docker
 
-  docker image build -t benmack/eobox:latest -f docker/eobox.dockerfile .
-
-  docker run  -v ${PWD}:/home/eoboxer/host_pwd -p 8888:8888 benmack/eobox:latest
+There is a section on Docker in the documentation in case you are interested in that.
 
 ## Documentation
 
