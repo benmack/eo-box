@@ -5,26 +5,36 @@ import warnings
 
 def _find_gdal_py_file(name):
     # find the path to the gdal_proximity.py - I found it in these places so far...
-    try:
-        PATH = str(list(Path(gdal.__file__).parent.rglob(name))[0])
-    except:
-        PATH = None
-    if PATH is None:
-        try:
-            PATH = str(list(Path(gdal.__file__).parent.parent.rglob(f"GDAL*/scripts/{name}"))[0])
-        except:
-            PATH = None
-    if PATH is None:
-        try:
-            PATH = str(list(Path("/usr/bin").glob(f"{name}"))[0])
-        except:
-            PATH = None
+    # find it in your system: find / -name gdal_proximity.py | grep gdal_
 
+    def _find_gdal_py_file_in_dir(dirname, filename, gdal_py_path):
+        # if we already found a path we just return it again
+        if gdal_py_path is None:
+            # else we look for it recursively
+            try:
+                gdal_py_path = str(list(Path(dirname).rglob(filename))[0])
+            except IndexError:
+                gdal_py_path = None
+            except:
+                raise
+        return gdal_py_path
 
-    if PATH is None:
+    gdal_py_path = None
+    gdal_py_path = _find_gdal_py_file_in_dir(dirname=Path(gdal.__file__).parent, filename=f"GDAL*/scripts/{name}", gdal_py_path=gdal_py_path)
+    gdal_py_path = _find_gdal_py_file_in_dir(dirname="/usr/bin", filename=name, gdal_py_path=gdal_py_path)
+    gdal_py_path = _find_gdal_py_file_in_dir(dirname="/opt/conda/bin", filename=name, gdal_py_path=gdal_py_path)
+
+    if gdal_py_path is None:
+        try:
+            gdal_py_path = str(list(Path().glob(f"{name}"))[0])
+        except:
+            gdal_py_path = None
+
+    if gdal_py_path is None:
         warnings.warn(f"Could not find the path of {name}: Searched in " + \
                         f"{Path(gdal.__file__).parent}, {str(Path(gdal.__file__).parent.parent)+'/GDAL*/scripts'}.")
-    return PATH
+    return gdal_py_path
+
 PROXIMITY_PATH = _find_gdal_py_file(name="gdal_proximity.py")
 POLYGONIZE_PATH = _find_gdal_py_file(name="gdal_polygonize.py")
 
