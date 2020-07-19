@@ -38,11 +38,18 @@ setup(name='eobox',
       packages=find_packages(),
       install_requires=parse_requirements("requirements.txt"),
       include_package_data=True,
-      package_data={'eobox/sampledata/data/s2l1c': [
-          's2l1c/**/*jp2', 
-          's2l1c/s2l1c_ref.gpkg',
-          's2l1c/gis_osm_landuse-water_a_free_1_area-10000-to-500000.gpkg'
-          ],
-          'eobox/sampledata/data/lsts': ['lsts/**/*tif']
-          },
-      zip_safe=False)
+      package_data={
+          'eobox/sampledata/data/s2l1c': [
+              's2l1c/**/*jp2',
+              's2l1c/s2l1c_ref.gpkg',
+              's2l1c/gis_osm_landuse-water_a_free_1_area-10000-to-500000.gpkg'
+              ],
+          'eobox/sampledata/data/lsts': [
+              'lsts/**/*tif'
+              ]},
+      zip_safe=False,
+      entry_points='''
+        [console_scripts]
+        eobox-extract=eobox.scripts.extraction:app
+        '''
+)
