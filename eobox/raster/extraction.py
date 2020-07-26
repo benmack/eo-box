@@ -79,7 +79,10 @@ def extract(src_vector: str,
     paths_extracted_aux = {ele: os.path.join(dst_dir, f"{ele}.npy") \
                            for ele in [f"aux_vector_{burn_attribute}",
                                        "aux_coord_x",
-                                       "aux_coord_y"]}
+                                       "aux_coord_lon",
+                                       "aux_coord_y",
+                                       "aux_coord_lat",
+                                       ]}
     if dist2pb:
         path_dist2pb = os.path.join(dst_dir, f"aux_vector_dist2pb.tif")
         paths_extracted_aux["aux_vector_dist2pb"] = os.path.join(dst_dir, f"aux_vector_dist2pb.npy")
@@ -118,7 +121,10 @@ def extract(src_vector: str,
 
     # create the pixel coordinates if they do not exist
     if not all([os.path.exists(paths_extracted_aux["aux_coord_x"]),
-                os.path.exists(paths_extracted_aux["aux_coord_y"])]):
+                os.path.exists(paths_extracted_aux["aux_coord_lon"]),
+                os.path.exists(paths_extracted_aux["aux_coord_y"]),
+                os.path.exists(paths_extracted_aux["aux_coord_lat"]),
+                ]):
         _create_and_save_coords(path_rasterized, paths_extracted_aux, mask_arr)
 
     if dist2pb and not os.path.exists(paths_extracted_aux["aux_vector_dist2pb"]):
@@ -181,14 +187,20 @@ def _create_and_save_coords(path_rasterized, paths_extracted_aux, mask_arr):
                                          cols=[0] * src.meta["height"],
                                          offset='center')[1]}
     coords_2d_array_x, coords_2d_array_y = np.meshgrid(coords["x"], coords["y"])
-    del coords
-    np.save(paths_extracted_aux["aux_coord_x"],
-            np.expand_dims(coords_2d_array_x, axis=0)[mask_arr])
-    del coords_2d_array_x
-    np.save(paths_extracted_aux["aux_coord_y"],
-            np.expand_dims(coords_2d_array_y, axis=0)[mask_arr])
-    del coords_2d_array_y
 
+    del coords
+    coord_x = np.expand_dims(coords_2d_array_x, axis=0)[mask_arr]
+    np.save(paths_extracted_aux["aux_coord_x"], coord_x)
+    del coords_2d_array_x
+    coord_y = np.expand_dims(coords_2d_array_y, axis=0)[mask_arr]
+    np.save(paths_extracted_aux["aux_coord_y"], coord_y)
+    del coords_2d_array_y
+    
+    geometry = gpd.points_from_xy(coord_x, coord_y)
+    gdf_coord = gpd.GeoDataFrame(geometry=geometry, crs=str(src.meta["crs"])) \
+        .to_crs(epsg=4326)
+    np.save(paths_extracted_aux["aux_coord_lon"], gdf_coord.geometry.x.values)
+    np.save(paths_extracted_aux["aux_coord_lat"], gdf_coord.geometry.y.values)
 
 def _extract_and_save_one_layer(path_src, path_dst, mask_arr):
     with rasterio.open(path_src) as src:
@@ -248,7 +260,6 @@ def load_extracted(src_dir: str,
         index = pd.Series([0] * len(index), dtype=bool)
         index.loc[0:5] = True
         # print(index)
-
 
     if vars_in_cols:
         df_data = {}

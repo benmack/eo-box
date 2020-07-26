@@ -38,7 +38,9 @@ def extracted_data_1(extraction_input_1, tmpdir):
     assert (exit_code == 0)
     expected_basenames = ['aux_vector_pid.npy',
                           'aux_coord_x.npy',
+                          'aux_coord_lon.npy',
                           'aux_coord_y.npy',
+                          'aux_coord_lat.npy',
                           'B11.npy',
                           'B12.npy']
     extraction_input_1["extracted_basenames"] = expected_basenames
@@ -77,7 +79,9 @@ def test_extract_and_save_to_npy_successfully_parallel(extraction_input_1):
     assert (exit_code == 0)
     expected_basenames = ['aux_vector_pid.npy',
                           'aux_coord_x.npy',
+                          'aux_coord_lon.npy',
                           'aux_coord_y.npy',
+                          'aux_coord_lat.npy',
                           'B11.npy',
                           'B12.npy']
     assert (all([(extraction_input_1["extracted_dir"] / bname).exists() for bname in expected_basenames]))
@@ -100,7 +104,7 @@ def test_extract_and_save_to_npy_rerun_on_existing_data_successfully(extracted_d
 def test_load_extracted(extracted_data_1):
 
     df_extracted = load_extracted(extracted_data_1["extracted_dir"])
-    assert(df_extracted.shape[1] == 5)
+    assert(df_extracted.shape[1] == 7)
     assert(~df_extracted["aux_vector_pid"].isin([18]).any())
 
 
