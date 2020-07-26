@@ -5,6 +5,7 @@ descartes
 # gdal
 geopandas
 matplotlib
+mlxtend
 nbsphinx # dev
 numpy
 gdal
@@ -15,9 +16,10 @@ seaborn
 sphinx # dev
 sphinx_rtd_theme # dev
 tqdm
+typer
 twine # dev
 # to open and run the examples, i.e. notebooks
-jupyter
+jupyterlab
 # in addition to the ones above for sampledata examples
 affine
 # in addition to the ones above for raster examples
