@@ -1,4 +1,5 @@
 
+import glob
 import pandas as pd
 from pathlib import Path
 import typer
@@ -14,17 +15,26 @@ def extract(
         burn_attribute: str = typer.Argument(...,
             help="Attribute table field of the src_vector dataset to be stored along with the raster values."),
         src_raster: str = typer.Argument(...,
-            help="Text filepath with paths to single-band raster files from which to extract."),
+            help="Raster path matching specification passed to glob.glob (e.g. ./**/*.jp2) or text filepath with paths to single-band raster files from which to extract."),
         dst_dir : str = typer.Argument(...,
             help="Destination directory to store the extracted data to."),
         dst_names: str = typer.Option(None, 
             help="Text filepath with destination names corresponding to src_raster. If not given the stem of the paths in src_raster is used."),
+        recursive: bool = typer.Option(True,
+            help="Define if you want to search for matching rasters recursively. Only used if src_raster is a raster path matching specification."),
+        dist2pb: bool = typer.Option(True,
+            help="Generate distance to polygon border for each extracted pixel."),
+        dist2rb: bool = typer.Option(True,
+            help="Generate distance to tile border for each extracted pixel.")
 ):
-    # typer.echo("Hello from the extract command ....")
-    # typer.echo(f"{src_vector}")
-
-    with open(src_raster, "r") as src:
-        src_raster_list = src.read().split("\n")
+    if Path(src_raster).exists():
+        with open(src_raster, "r") as src:
+            src_raster_list = src.read().split("\n")
+    else:
+        src_raster_list = glob.glob(src_raster, recursive=recursive)
+        if not len(src_raster_list):
+            raise Exception(f"Could not match any files with 'glob.glob(\"{src_raster}\", recursive={recursive})' called from path {str(Path('.').resolve())}.")
+    
     if "" in src_raster_list:
         src_raster_list.remove("")
     for rpath in src_raster_list:
@@ -44,4 +54,7 @@ def extract(
                        burn_attribute=burn_attribute,
                        src_raster=src_raster_list,
                        dst_names=dst_names_list,
-                       dst_dir=dst_dir)
+                       dst_dir=dst_dir,
+                       dist2pb=dist2pb,
+                       dist2rb=dist2rb,
+                      )
