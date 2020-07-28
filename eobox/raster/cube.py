@@ -514,12 +514,8 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                                    compress="lzw",
                                    nodata=None,
                                    num_workers=1):
-        dst_paths = {}
-        for var in self.variables:
-            dst_paths[var] = []
-            for date in idx_virtual:
-                dst_paths[var].append(dst_pattern.format(**{"var": var, "date": date.strftime("%Y-%m-%d")}))
-        assert (len(idx_virtual) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+
+        dst_paths = create_names_virtual_time_series(dst_pattern=dst_pattern, idx_virtual=idx_virtual, variables=self.variables)
 
         self.apply_and_write_by_variable(fun=create_virtual_time_series,
                                          dst_paths=dst_paths,
@@ -540,24 +536,8 @@ class EOCubeSceneCollection(EOCubeSceneCollectionAbstract, EOCube):
                                    nodata=None,
                                    num_workers=1):
 
-        metrics = ['mean', 'std', 'min']
-        metrics += [f'p{int(p*100):02d}' for p in percentiles]
-        metrics += ['max']
-        if iqr:
-            metrics += ['p75-p25']
-        if diffs:
-            metrics += ['min-max']
-            if 0.05 in percentiles and 0.95 in percentiles:
-                metrics += ['p95-p05']
-            if 0.10 in percentiles and 0.90 in percentiles:
-                metrics += ['p90-p10']
 
-        dst_paths = {}
-        for var in self.variables:
-            dst_paths[var] = []
-            for metric in metrics:
-                dst_paths[var].append(dst_pattern.format(**{"var": var, "metric": metric}))
-        assert (len(metrics) * len(self.variables)) == sum([len(dst_paths[var]) for var in self.variables])
+        dst_paths = create_names_statistical_metrics(dst_pattern=dst_pattern, variables=self.variables, percentiles=percentiles, iqr=iqr, diffs=diffs)
 
         self.apply_and_write_by_variable(fun=create_statistical_metrics,
                                          dst_paths=dst_paths,
@@ -640,8 +620,140 @@ class EOCubeSceneCollectionChunk(EOCubeSceneCollectionAbstract, EOCubeChunk):
         self._data = dfs_variables
         return self
 
+# def create_names_statistical_metrics(dst_pattern, percentiles=None, iqr=True, diffs=True, variables=None):
 
-def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
+#     if isinstance(variables, str):
+#         var_input_is_str = True
+#         # in this case we will later reduce the dictionary to the valuee of its single element 
+#         variables = [variables]
+#     else:
+#         var_input_is_str = True
+
+#     if percentiles is None:
+#         percentiles = [.1, .25, .50, .75, .9]
+
+#     metrics = ['mean', 'std', 'min']
+#     metrics += [f'p{int(p*100):02d}' for p in percentiles]
+#     metrics += ['max']
+#     if iqr:
+#         metrics += ['p75-p25']
+#     if diffs:
+#         metrics += ['max-min']
+#         if 0.05 in percentiles and 0.95 in percentiles:
+#             metrics += ['p95-p05']
+#         if 0.10 in percentiles and 0.90 in percentiles:
+#             metrics += ['p90-p10']
+
+#     dst_names = {}
+#     for var in variables:
+#         dst_names[var] = []
+#         for metric in metrics:
+#             dst_names[var].append(dst_pattern.format(**{"var": var, "metric": metric}))
+#     assert (len(metrics) * len(variables)) == sum([len(dst_names[var]) for var in variables])
+#     if var_input_is_str:
+#         dst_names = dst_names[variables[0]]
+#     return dst_names
+
+def _create_names_virtual_time_series(dst_pattern, idx_virtual):
+    dst_names = []
+    for date in idx_virtual:
+        dst_names.append(dst_pattern.format(**{"date": date.strftime("%Y-%m-%d")}))
+    assert len(idx_virtual) == len(dst_names)
+    return dst_names
+
+def create_names_virtual_time_series(dst_pattern, idx_virtual, variables=None):
+    if variables is None:
+        dst_names = _create_names_virtual_time_series(dst_pattern, idx_virtual)
+    elif isinstance(variables, str):
+        dst_names = _create_names_virtual_time_series(dst_pattern=dst_pattern.replace("{var}", variables), idx_virtual=idx_virtual)
+    else:
+        dst_names = {}
+        for var in variables:
+            dst_names[var] = _create_names_virtual_time_series(dst_pattern=dst_pattern.replace("{var}", var), idx_virtual=idx_virtual)
+    return dst_names
+
+def _create_names_statistical_metrics(dst_pattern, percentiles=None, iqr=True, diffs=True):
+    if percentiles is None:
+        percentiles = [.1, .25, .50, .75, .9]
+
+    metrics = ['mean', 'std', 'min']
+    metrics += [f'p{int(p*100):02d}' for p in percentiles]
+    metrics += ['max']
+    if iqr:
+        metrics += ['p75-p25']
+    if diffs:
+        metrics += ['max-min']
+        if 0.05 in percentiles and 0.95 in percentiles:
+            metrics += ['p95-p05']
+        if 0.10 in percentiles and 0.90 in percentiles:
+            metrics += ['p90-p10']
+
+    dst_names = []
+    for metric in metrics:
+        dst_names.append(dst_pattern.format(**{"metric": metric}))
+    assert len(metrics) == len(dst_names)
+    return dst_names
+
+def create_names_statistical_metrics(dst_pattern, percentiles=None, iqr=True, diffs=True, variables=None):
+    if variables is None:
+        dst_names = _create_names_statistical_metrics(dst_pattern, percentiles=percentiles, iqr=iqr, diffs=diffs)
+    elif isinstance(variables, str):
+        dst_names = _create_names_statistical_metrics(dst_pattern=dst_pattern.replace("{var}", variables), percentiles=percentiles, iqr=iqr, diffs=diffs)
+    else:
+        dst_names = {}
+        for var in variables:
+            dst_names[var] = _create_names_statistical_metrics(dst_pattern=dst_pattern.replace("{var}", var), percentiles=percentiles, iqr=iqr, diffs=diffs)
+    return dst_names
+
+def scoll_df_to_var_dfs(scoll_df, df_layers, qa=None, qa_valid=None, verbose=True):
+    """Convert a dataframe with variable and qa columns into a dictionary with masked variable dataframes.
+    
+    Parameters
+    ----------
+    scoll_df : [pd.DataFrame]
+        dataframe as returned by `EOCubeSceneCollectionChunk(...).read_data().convert_data_to_dataframe()`
+    df_layers : [pd.DataFrame]
+        See EOCubeSceneCollectionAbstract.
+    qa : [str]
+        See EOCubeSceneCollectionAbstract.
+    qa_valid : [list]
+        See EOCubeSceneCollectionAbstract.
+    verbose : [bool]
+        ...
+    """
+    if qa is not None:
+        mask=True
+        assert qa_valid is not None, "qa is not None therefore it is assumed that qa_valid should be not None."
+    else:
+        mask=False
+    
+    if mask:
+        # 3.A.
+        ilocs_qa = np.where((df_layers["band"] == qa).values)[0]
+        df_qa = scoll_df.iloc[:, ilocs_qa]
+        df_qa.columns = df_layers["date"].iloc[ilocs_qa]
+        df_clearsky = df_qa.isin(qa_valid)
+        # last_stopped = print_elapsed_time(start_time, last_stopped, "Clearsky df created")
+
+        return_bands = list(df_layers.band.unique())
+        return_bands.remove(qa)
+    else:
+        return_bands = df_layers.band.unique()
+
+    dfs_variables = {}
+    for var in return_bands:
+        if verbose:
+            print("VARIABLE:", var)
+        ilocs_var = np.where((df_layers["band"] == var).values)[0]
+        df_var = scoll_df.iloc[:, ilocs_var]
+        df_var.columns = df_layers["date"].iloc[ilocs_var]
+        if mask:
+            df_var = df_var.where(df_clearsky, other=np.nan)
+        dfs_variables[var] = df_var
+    # last_stopped = print_elapsed_time(start_time, last_stopped, "Clearsky df created")
+    return dfs_variables
+
+def create_virtual_time_series(df_var, idx_virtual, colname_pattern=None, num_workers=1, verbosity=0):
     """Create a virtual time series from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
     
     Parameters
@@ -650,6 +762,8 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
         [description]
     idx_virtual : [type]
         [description]
+    colname_pattern : str
+        Pattern for the column name, e.g. 'ls2010_vts2w_{date}_ndvi', where the data will be inserted from idx_virtual.
     num_workers : int, optional
         [description], by default 1
     verbosity : int, optional
@@ -710,9 +824,17 @@ def create_virtual_time_series(df_var, idx_virtual, num_workers=1, verbosity=0):
         df_result = _create_virtual_time_series_core(df_var,
                                                      idx_virtual,
                                                      verbosity=verbosity)
+    
+    if colname_pattern is not None:
+        colnames = create_names_virtual_time_series(dst_pattern=colname_pattern, idx_virtual=idx_virtual)
+        for col, name in zip(df_result.columns.strftime("%Y-%m-%d"), colnames):
+            if col not in name:
+                raise Exception(f"Mismatch between column {col} and name {name}.")
+        df_result.columns = colnames
+
     return df_result
 
-def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, num_workers=1, verbosity=0):
+def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, colname_pattern=None, num_workers=1, rename2p=False, verbosity=0):
     """Calculate statistial metrics from a dataframe with pd.DateTimeIndex and a instance (e.g. pixels) dimension. 
     
     Parameters
@@ -725,6 +847,8 @@ def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, n
         [description]
     num_workers : int, optional
         [description], by default 1
+    rename2p : bool, optional
+        Rename %-columns (e.g 90%) to p-columns (e.g. p90) 
     verbosity : int, optional
         [description], by default 0
     
@@ -765,5 +889,13 @@ def create_statistical_metrics(df_var, percentiles=None, iqr=True, diffs=True, n
                                               percentiles,
                                               iqr,
                                               diffs=diffs)
-    return df_result
+    if colname_pattern or rename2p:
+        df_result.columns = [f"p{col.replace('%', '')}" if '%' in col else col for col in df_result.columns]
 
+    if colname_pattern is not None:
+        colnames = create_names_statistical_metrics(colname_pattern, percentiles=percentiles, iqr=iqr, diffs=diffs)
+        for col, name in zip(df_result.columns, colnames):
+            if col not in name:
+                raise Exception(f"Mismatch between column {col} and name {name}.")
+        df_result.columns = colnames
+    return df_result
