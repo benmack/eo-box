@@ -1,6 +1,7 @@
 # package dependencies
 affine
 dask[complete]
+fastparquet
 descartes
 # gdal
 geopandas
@@ -10,7 +11,9 @@ nbsphinx # dev
 numpy
 gdal
 pandas
+pyarrow
 pytest # dev
+# python-snappy # makes docker build fail...
 rasterio
 seaborn
 sphinx # dev

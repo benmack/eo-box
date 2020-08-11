@@ -22,7 +22,7 @@ With the following changes with respect to *cgspatial-notebook*:
 
 **Build**::
 
-  docker image build -t benmack/eobox-notebook:latest -t benmack/eobox-notebook:0.0.1 -f docker/eobox-notebook.dockerfile .
+  docker image build -t benmack/eobox-notebook:2020-08-11 -f docker/eobox-notebook.dockerfile .
 
 **Run - Jupyter Notebook** - this is the default.::
 
@@ -30,7 +30,7 @@ With the following changes with respect to *cgspatial-notebook*:
 
 **Run - Bash**::
 
-  docker run --rm benmack/eobox-notebook:latest bash ls
+  docker run --rm benmack/eobox-notebook:latest bash -c ls
 
 **Run - Python**, e.g. test if eobox can be imported::
 
