@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "sample_locations",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::32613" } },
+"features": [
+{ "type": "Feature", "properties": { "fid": 1, "locid": 1, "comment": "north-west" }, "geometry": { "type": "Point", "coordinates": [ 336389.085518609674182, 4462408.761714396998286 ] } },
+{ "type": "Feature", "properties": { "fid": 2, "locid": 2, "comment": "south-west" }, "geometry": { "type": "Point", "coordinates": [ 336390.043667585356161, 4460607.441639332100749 ] } },
+{ "type": "Feature", "properties": { "fid": 3, "locid": 3, "comment": "north-east" }, "geometry": { "type": "Point", "coordinates": [ 338193.918806594039779, 4462411.955544325523078 ] } },
+{ "type": "Feature", "properties": { "fid": 4, "locid": 4, "comment": "south-east" }, "geometry": { "type": "Point", "coordinates": [ 338191.30277262540767, 4460606.631993001326919 ] } },
+{ "type": "Feature", "properties": { "fid": 5, "locid": 5, "comment": "middle-roughly" }, "geometry": { "type": "Point", "coordinates": [ 336930.397823421168141, 4461958.487463131546974 ] } }
+]
+}
