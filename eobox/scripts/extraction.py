@@ -2,6 +2,7 @@
 import glob
 import pandas as pd
 from pathlib import Path
+import shutil
 import typer
 
 from ..raster import extraction
@@ -25,7 +26,14 @@ def extract(
         dist2pb: bool = typer.Option(True,
             help="Generate distance to polygon border for each extracted pixel."),
         dist2rb: bool = typer.Option(True,
-            help="Generate distance to tile border for each extracted pixel.")
+            help="Generate distance to tile border for each extracted pixel."),
+        dst_parquet: str = typer.Option(None,
+            help="Path to store all extracted numpy files additionally as parquet (engine=auto, compression=GZIP)."),
+#         delete_npy: str = typer.Option(False,
+#             help="Delete numpy files after writing parquet - only considered if dst_parquet is given."),
+        delete_dst_dir: bool = typer.Option(False,
+            help="Delete the whole destination dir - only if dst_parquet is given."), 
+            # not only the npy files as possible with delete_npy 
 ):
     if Path(src_raster).exists():
         with open(src_raster, "r") as src:
@@ -58,3 +66,9 @@ def extract(
                        dist2pb=dist2pb,
                        dist2rb=dist2rb,
                       )
+    if dst_parquet:
+        pths = extraction.get_paths_of_extracted(dst_dir,
+                                          patterns=["aux*.npy"] + [f"{dn}.npy" for dn in dst_names_list])
+        extraction.load_extracted_dask(pths).to_parquet(dst_parquet, compression="GZIP", engine="pyarrow")
+        if delete_dst_dir:
+            shutil.rmtree(dst_dir)
