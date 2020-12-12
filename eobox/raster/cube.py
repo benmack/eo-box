@@ -4,6 +4,7 @@ from pathlib import Path
 import rasterio
 import time
 from tqdm import tqdm
+import warnings
 
 from .rasterprocessing import MultiRasterIO
 from .gdalutils import buildvrt
@@ -802,6 +803,10 @@ def create_virtual_time_series(df_var, idx_virtual, colname_pattern=None, num_wo
         # extend the time series data such that it contains all existing and virtual time series points
         df = df.reindex(index=idx_virtual_and_data)
         # interpolate between dates and forward/backward fill edges with closest values
+        float_columns = df.dtypes.astype(str).str.contains("float")
+        if not float_columns.all(): # since interpolate would not work otherwise
+            warnings.warn(f"Converting the following columns to float for termporal interpolation: {df.columns[~float_columns]}")
+            df.loc[:, ~float_columns] = df.loc[:, ~float_columns].astype(float)
         df = df.interpolate(method='time')
         df = df.bfill()
         df = df.ffill()
