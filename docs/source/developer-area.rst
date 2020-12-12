@@ -35,3 +35,13 @@ TODO: Create best-practice ressource for contribution in a open source GitHub co
 * Create a new release on GitHub and upload files
 
 * Upload to PyPi from master without `python3 -m twine upload dist/*`.
+
+## Docker
+
+Steps
+
+* set version
+* push
+* pull clean
+* docker image build -t benmack/eobox-notebook:latest -t benmack/eobox-notebook:v0.0.2 -f docker/eobox-notebook.dockerfile .
+* push
