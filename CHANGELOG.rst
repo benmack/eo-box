@@ -9,6 +9,7 @@ All notable changes to **eo-box** will be listed here starting from version 3.2.
 Added
 ~~~~~
 
+* Forward feature group selection (`eobox.ml.ffgs`).
 * Support for calculating L3 features from *extracted* L2 data.
 * By default, during extraction the coordinates are stored as lat/lon (EPSG:4326), => *aux_coord_lat*, *aux_coord_lon*, 
   additionally to the the *aux_coord_x*, *aux_coord_y* raster CRS coordinates stored so far. 
